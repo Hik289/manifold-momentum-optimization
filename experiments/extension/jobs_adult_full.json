@@ -1,0 +1,32 @@
+[
+  {
+    "id": "tabular_adult_adamw_full",
+    "family": "tabular",
+    "task": "adult",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "full",
+    "diag_every": 10
+  },
+  {
+    "id": "tabular_adult_euclidean_full",
+    "family": "tabular",
+    "task": "adult",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "full",
+    "diag_every": 10
+  },
+  {
+    "id": "tabular_adult_bures_full",
+    "family": "tabular",
+    "task": "adult",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "full",
+    "diag_every": 10
+  }
+]

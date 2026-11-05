@@ -1,0 +1,122 @@
+{
+  "created_at": "2026-11-02T11:37:40.573063-05:00",
+  "status": "frozen before any new-task training or model test evaluation",
+  "tasks": [
+    {
+      "task": "etth1",
+      "family": "forecasting",
+      "model": "lstm64",
+      "input_length": 96,
+      "horizon": 24,
+      "batch": 64,
+      "primary_metric": "standardized MSE",
+      "direction": "min"
+    },
+    {
+      "task": "etth2",
+      "family": "forecasting",
+      "model": "lstm64",
+      "input_length": 96,
+      "horizon": 24,
+      "batch": 64,
+      "primary_metric": "standardized MSE",
+      "direction": "min"
+    },
+    {
+      "task": "uci_har",
+      "family": "sequence_classification",
+      "model": "lstm64",
+      "input_length": 128,
+      "batch": 64,
+      "primary_metric": "accuracy",
+      "direction": "max"
+    },
+    {
+      "task": "forda",
+      "family": "sequence_classification",
+      "model": "lstm64",
+      "input_length": 500,
+      "batch": 32,
+      "primary_metric": "accuracy",
+      "direction": "max"
+    },
+    {
+      "task": "digits_denoise",
+      "family": "denoising",
+      "model": "autoencoder",
+      "batch": 64,
+      "primary_metric": "clean-target MSE",
+      "direction": "min"
+    },
+    {
+      "task": "olivetti_denoise",
+      "family": "denoising",
+      "model": "autoencoder",
+      "batch": 64,
+      "primary_metric": "clean-target MSE",
+      "direction": "min"
+    }
+  ],
+  "methods": [
+    "adamw",
+    "euclidean",
+    "bures"
+  ],
+  "common_rates": [
+    1e-05,
+    3e-05,
+    0.0001,
+    0.0003,
+    0.001,
+    0.003
+  ],
+  "tuning_updates": 2000,
+  "full_updates": 5000,
+  "full_seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "tuning_runs": 108,
+  "full_runs": 90,
+  "total_runs": 198,
+  "test_policy": "Tuning records never load or evaluate test arrays. All six tasks proceed to all five seeds after validation-only rate selection; tasks and seeds cannot be dropped based on outcomes.",
+  "selection_rule": "Within method/task, maximize validation accuracy or minimize validation MSE; exact ties choose smaller rate. Incomplete or nonfinite tuning trials are ineligible but retained.",
+  "checkpoint_rule": "First strictly best validation checkpoint; report both final and validation-selected test metrics after full budget.",
+  "architecture": "One-layer LSTM with hidden size 64; recurrent 2D core matrices use paired optimizer, output head and recurrent biases use common AdamW. Denoising uses tanh MLP d-64-16-64-d with sigmoid output; all matrices use the paired optimizer.",
+  "normalization": "Train-only means/std for forecasting and sequence inputs. Digits pixels /16 and raw Olivetti pixels /255, Olivetti average pool 4x4 to 16x16. Denoising training noise sigma .15; frozen validation/test corruption independent of optimizer/seed.",
+  "splits": "ETTh1/2 target ranges 0:8640,8640:11520,11520:14400, no-overlap 24-step evaluation targets; HAR holds four official training subjects out for validation, official test subjects untouched; FordA holds 20% official training cases out stratified; digits70/10/20 stratified; Olivetti28/4/8 subject split. Split seed42.",
+  "family_claim_rule": "Every family must complete both tasks and all five method/seed sets. For each task and both references require positive paired 95% t-interval, at least 0.5 percentage point accuracy gain or 1% relative MSE reduction. Family p is maximum of four one-sided paired t p-values (intersection-union); apply Holm across the three planned families at FWER .05. If criteria fail, report mixed/unsupported; never delete outcomes.",
+  "matrix_profile": {
+    "betas": [
+      0.9,
+      0.99
+    ],
+    "state_dtype": "float64",
+    "gradient_clip": 1.0,
+    "block_size": 64,
+    "root_interval": 10,
+    "norm_matching_lower": 0.1,
+    "norm_matching_upper": 10,
+    "weight_decay": 0.0001
+  },
+  "compute": {
+    "device": "cpu",
+    "single_thread_per_process": true,
+    "workers": 6,
+    "nice": 10,
+    "finite_queue": true
+  },
+  "data_revision": {
+    "ETDataset": "1d16c8f4f943005d613b5bc962e9eeb06058cf07"
+  },
+  "sources": {
+    "ETT": "https://github.com/zhouhaoyi/ETDataset",
+    "HAR": "https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones",
+    "FordA": "https://timeseriesclassification.com/description.php?Dataset=FordA",
+    "digits": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_digits.html",
+    "olivetti": "https://scikit-learn.org/stable/modules/generated/sklearn.datasets.fetch_olivetti_faces.html"
+  }
+}

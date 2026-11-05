@@ -1,0 +1,182 @@
+[
+  {
+    "id": "lm_lrgrid_wikitext103_adamw_1e-05",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 1e-05,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_euclidean_1e-05",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 1e-05,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_bures_1e-05",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 1e-05,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_adamw_3e-05",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 3e-05,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_euclidean_3e-05",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 3e-05,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_bures_3e-05",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 3e-05,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_adamw_0.0001",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.0001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_euclidean_0.0001",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.0001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_bures_0.0001",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.0001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_adamw_0.0003",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.0003,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_euclidean_0.0003",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.0003,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_bures_0.0003",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.0003,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_adamw_0.001",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_euclidean_0.001",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_bures_0.001",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_adamw_0.003",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.003,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_euclidean_0.003",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.003,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_lrgrid_wikitext103_bures_0.003",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.003,
+    "stage": "screen",
+    "diag_every": 10
+  }
+]

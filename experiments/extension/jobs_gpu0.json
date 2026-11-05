@@ -1,0 +1,300 @@
+[
+  {
+    "id": "graph_Cora_adamw_full",
+    "family": "graph",
+    "task": "Cora",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_Cora_bures_full",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_Cora_scale_only_full",
+    "family": "graph",
+    "task": "Cora",
+    "method": "scale_only",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_CiteSeer_euclidean_full",
+    "family": "graph",
+    "task": "CiteSeer",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_CiteSeer_shampoo_full",
+    "family": "graph",
+    "task": "CiteSeer",
+    "method": "shampoo",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_PubMed_adamw_full",
+    "family": "graph",
+    "task": "PubMed",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_PubMed_bures_full",
+    "family": "graph",
+    "task": "PubMed",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "graph_PubMed_scale_only_full",
+    "family": "graph",
+    "task": "PubMed",
+    "method": "scale_only",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_right_only",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "ablation": "right_only",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_no_norm",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "ablation": "no_norm",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_identity",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "ablation": "identity",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_diagonal",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "ablation": "diagonal",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_tau1",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "tau": 1,
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_block64",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "block": 64,
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_beta0.9",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "beta2": 0.9,
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_beta0.995",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "beta2": 0.995,
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "ablation_ai",
+    "family": "graph",
+    "task": "Cora",
+    "method": "ai",
+    "epochs": 1000,
+    "lr": 0.01
+  },
+  {
+    "id": "lm_wikitext103_euclidean_screen",
+    "family": "lm",
+    "task": "wikitext103",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_openwebtext_adamw_screen",
+    "family": "lm",
+    "task": "openwebtext",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_openwebtext_bures_screen",
+    "family": "lm",
+    "task": "openwebtext",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "lm_c4_euclidean_screen",
+    "family": "lm",
+    "task": "c4",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 10
+  },
+  {
+    "id": "tabular_california_adamw_screen",
+    "family": "tabular",
+    "task": "california",
+    "method": "adamw",
+    "epochs": 20,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 1
+  },
+  {
+    "id": "tabular_california_bures_screen",
+    "family": "tabular",
+    "task": "california",
+    "method": "bures",
+    "epochs": 20,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 1
+  },
+  {
+    "id": "tabular_adult_euclidean_screen",
+    "family": "tabular",
+    "task": "adult",
+    "method": "euclidean",
+    "epochs": 20,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 1
+  },
+  {
+    "id": "tabular_covertype_adamw_screen",
+    "family": "tabular",
+    "task": "covertype",
+    "method": "adamw",
+    "epochs": 20,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 1
+  },
+  {
+    "id": "tabular_covertype_bures_screen",
+    "family": "tabular",
+    "task": "covertype",
+    "method": "bures",
+    "epochs": 20,
+    "lr": 0.001,
+    "stage": "screen",
+    "diag_every": 1
+  },
+  {
+    "id": "tabular_california_euclidean_full",
+    "family": "tabular",
+    "task": "california",
+    "method": "euclidean",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "full",
+    "diag_every": 10
+  },
+  {
+    "id": "shift_mnist_adamw_full",
+    "family": "shift",
+    "task": "rotated_mnist",
+    "method": "adamw",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "full"
+  },
+  {
+    "id": "shift_mnist_bures_full",
+    "family": "shift",
+    "task": "rotated_mnist",
+    "method": "bures",
+    "epochs": 1000,
+    "lr": 0.001,
+    "stage": "full"
+  },
+  {
+    "id": "lrgrid_Cora_euclidean_0.0001",
+    "family": "graph",
+    "task": "Cora",
+    "method": "euclidean",
+    "epochs": 200,
+    "lr": 0.0001,
+    "stage": "screen"
+  },
+  {
+    "id": "lrgrid_Cora_adamw_0.001",
+    "family": "graph",
+    "task": "Cora",
+    "method": "adamw",
+    "epochs": 200,
+    "lr": 0.001,
+    "stage": "screen"
+  },
+  {
+    "id": "lrgrid_Cora_bures_0.001",
+    "family": "graph",
+    "task": "Cora",
+    "method": "bures",
+    "epochs": 200,
+    "lr": 0.001,
+    "stage": "screen"
+  },
+  {
+    "id": "lrgrid_Cora_euclidean_0.003",
+    "family": "graph",
+    "task": "Cora",
+    "method": "euclidean",
+    "epochs": 200,
+    "lr": 0.003,
+    "stage": "screen"
+  }
+]

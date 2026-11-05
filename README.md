@@ -10,13 +10,6 @@
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#reproducing-experiments">Experiments</a> ·
-  <a href="#repository-map">Code map</a>
-</p>
-
-<p align="center">
   <img src="assets/buresmomentum_intuition.png" width="96%" alt="Detailed BuresMomentum matrix update schematic">
 </p>
 
@@ -41,7 +34,7 @@ $$
 Each SPD state uses a two-point BW barycenter before spectral clipping. The resulting inverse square roots precondition the bias-corrected first moment:
 
 $$
-C_t=\operatorname{ClipSPD}\!\left(\operatorname{Bar}_{\mathrm{BW}}(C_{t-1},S_t)\right),\qquad
+C_t=\mathrm{ClipSPD}\!\left(\mathrm{Bar}_{\mathrm{BW}}(C_{t-1},S_t)\right),\qquad
 D_t=L_t^{-1/2}\widehat M_tR_t^{-1/2}.
 $$
 

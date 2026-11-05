@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/buresmomentum_intuition.png" width="96%" alt="Detailed BuresMomentum matrix update schematic">
+  <img src="assets/buresmomentum_intuition.png" width="96%" alt="Two-panel comparison of Euclidean and Bures–Wasserstein covariance averages computed from the same SPD matrices">
 </p>
 
 BuresMomentum changes **how the left and right covariance states are averaged**. The matrix gradient, first moment, inverse-root preconditioning, norm matching, and parameter step are shared with a paired Euclidean–Kronecker optimizer. This isolates the effect of Bures–Wasserstein (BW) geometry.

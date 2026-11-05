@@ -1,172 +1,139 @@
-"""Draw the detailed BuresMomentum method figure used in the README."""
+"""Render the README Figure 1 from a noncommuting SPD example.
+
+The two covariance ellipses are computed, not hand-shaped. The drawing
+follows the large blue geometry, black axes, serif mathematics and generous
+white space of the companion ManifoldFlow paper's opening figure.
+"""
+
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse, FancyArrowPatch, FancyBboxPatch, Rectangle
+import numpy as np
+from matplotlib.patches import Arc, Ellipse, FancyArrowPatch
 
 OUT = Path(__file__).with_name("buresmomentum_intuition.png")
-C = {
-    "ink": "#17263C", "muted": "#637188", "line": "#D8E1EC",
-    "blue": "#326AC6", "blue_bg": "#EFF5FF",
-    "orange": "#D78243", "orange_bg": "#FFF3EA",
-    "green": "#0E8576", "green_bg": "#EAF7F3",
-    "purple": "#8A65C7", "purple_bg": "#F6F0FD",
-    "gray": "#AEBBCC",
-}
+BLUE = "#3479A9"
+BLUE_FILL = "#D3E5F2"
+INK = "#111827"
 
-fig, ax = plt.subplots(figsize=(18, 7.6), dpi=190)
+
+def spd_power(matrix: np.ndarray, power: float) -> np.ndarray:
+    values, vectors = np.linalg.eigh(matrix)
+    return (vectors * values**power) @ vectors.T
+
+
+def bw_mean(a: np.ndarray, b: np.ndarray, alpha: float) -> np.ndarray:
+    a_half = spd_power(a, 0.5)
+    transport = spd_power(a, -0.5) @ spd_power(a_half @ b @ a_half, 0.5) @ spd_power(a, -0.5)
+    assert np.allclose(transport @ a @ transport, b, atol=1e-10)
+    h = (1 - alpha) * np.eye(2) + alpha * transport
+    return h @ a @ h
+
+
+def draw_covariance(ax, center, covariance, major_label, minor_label):
+    values, vectors = np.linalg.eigh(covariance)
+    order = np.argsort(values)[::-1]
+    values, vectors = values[order], vectors[:, order]
+    angle = np.degrees(np.arctan2(vectors[1, 0], vectors[0, 0]))
+    unit = 0.52
+    major, minor = unit * np.sqrt(values)
+    cx, cy = center
+
+    # Match the companion figure: one translucent blue body, blue section
+    # curves, black coordinate axes, and direct spectral labels.
+    ax.add_patch(Ellipse(center, 2 * major, 2 * minor, angle=angle,
+                         facecolor=BLUE_FILL, edgecolor=BLUE, linewidth=2.5,
+                         alpha=0.85, zorder=2))
+    ax.add_patch(Ellipse(center, 1.70 * major, 1.70 * minor, angle=angle,
+                         facecolor="none", edgecolor=BLUE, linewidth=1.25,
+                         alpha=0.50, zorder=3))
+    ax.add_patch(Arc(center, 2 * major, 1.02 * minor, angle=angle,
+                     theta1=0, theta2=180, color=BLUE, linewidth=1.4,
+                     alpha=0.65, zorder=3))
+    ax.add_patch(Arc(center, 2 * major, 1.02 * minor, angle=angle,
+                     theta1=180, theta2=360, color=BLUE, linewidth=1.4,
+                     alpha=0.65, zorder=3))
+
+    major_direction = vectors[:, 0]
+    if major_direction[0] < 0:
+        major_direction = -major_direction
+    minor_direction = vectors[:, 1]
+    if minor_direction[1] < 0:
+        minor_direction = -minor_direction
+    for direction, length in ((major_direction, major + 0.36),
+                              (minor_direction, minor + 0.50)):
+        dx, dy = direction * length
+        ax.add_patch(FancyArrowPatch((cx, cy), (cx + dx, cy + dy),
+                                     arrowstyle="-|>", mutation_scale=17,
+                                     linewidth=1.55, color=INK, zorder=1))
+    ax.plot([cx], [cy], marker="o", markersize=3, color=INK, zorder=4)
+    major_tip = np.array(center) + major_direction * (major + 0.42)
+    minor_tip = np.array(center) + minor_direction * (minor + 0.53)
+    ax.text(major_tip[0] + 0.08, major_tip[1] - 0.10, major_label,
+            ha="left", va="center",
+            fontsize=15.2, color=INK)
+    ax.text(minor_tip[0] - 0.16, minor_tip[1] + 0.08, minor_label,
+            ha="right", va="center",
+            fontsize=15.2, color=INK)
+
+
+plt.rcParams.update({
+    "font.family": "STIXGeneral",
+    "mathtext.fontset": "stix",
+    "font.size": 14,
+    "savefig.facecolor": "white",
+})
+
+a = np.diag([16.0, 1.0])
+theta = np.deg2rad(60.0)
+rotation = np.array([[np.cos(theta), -np.sin(theta)],
+                     [np.sin(theta), np.cos(theta)]])
+b = rotation @ a @ rotation.T
+alpha = 0.5
+euclidean = (1 - alpha) * a + alpha * b
+bures = bw_mean(a, b, alpha)
+
+fig, ax = plt.subplots(figsize=(13.4, 7.2), dpi=205)
 fig.patch.set_facecolor("white")
-ax.set(xlim=(0, 18), ylim=(0, 7.6))
+ax.set_xlim(0, 13.4)
+ax.set_ylim(0, 7.2)
+ax.set_aspect("equal")
 ax.axis("off")
 
+ax.text(3.22, 6.76, r"(a) Euclidean: $C_\alpha=(1-\alpha)A+\alpha B$",
+        ha="center", va="center", fontsize=20.1, color=INK)
+ax.text(10.16, 6.76, r"(b) BuresMomentum: $C_\alpha=H_\alpha A H_\alpha$",
+        ha="center", va="center", fontsize=20.1, color=INK)
 
-def txt(x, y, value, size=11, color="ink", weight="normal", ha="center"):
-    ax.text(x, y, value, fontsize=size, color=C.get(color, color), fontweight=weight,
-            va="center", ha=ha, family="DejaVu Sans")
+draw_covariance(ax, (2.80, 3.95), euclidean,
+                r"$\sqrt{\lambda_1(C^{\rm E})}$", r"$\sqrt{\lambda_2(C^{\rm E})}$")
+draw_covariance(ax, (9.70, 3.95), bures,
+                r"$\sqrt{\lambda_1(C^{\rm BW})}$", r"$\sqrt{\lambda_2(C^{\rm BW})}$")
 
+ax.text(6.68, 4.34, r"$TAT=B$", ha="center", va="center",
+        fontsize=17.5, color=INK)
+ax.text(6.68, 3.92, r"$H_\alpha=(1-\alpha)I+\alpha T$", ha="center",
+        va="center", fontsize=15.2, color=INK)
+ax.add_patch(FancyArrowPatch((5.95, 3.52), (7.40, 3.52),
+                             arrowstyle="-|>", mutation_scale=19,
+                             linewidth=1.8, color=INK))
 
-def box(x, y, w, h, accent, title, subtitle):
-    ax.add_patch(FancyBboxPatch((x, y), w, h,
-                                boxstyle="round,pad=0.025,rounding_size=0.10",
-                                facecolor="white", edgecolor=C["line"], linewidth=1.10))
-    ax.add_patch(FancyBboxPatch((x + .12, y + h - .16), w - .24, .045,
-                                boxstyle="round,pad=0.0,rounding_size=0.02",
-                                facecolor=C[accent], edgecolor="none"))
-    txt(x + .18, y + h - .41, title, 12.0, "ink", "bold", ha="left")
-    txt(x + .18, y + h - .68, subtitle, 8.4, "muted", ha="left")
+ax.text(3.22, 1.30, "Entrywise covariance interpolation,",
+        ha="center", va="center", fontsize=19.2, color=INK)
+ax.text(3.22, 0.88, "with a rounder intermediate spectrum",
+        ha="center", va="center", fontsize=18.2, color=INK)
+ax.text(10.16, 1.30, "Transport-aligned covariance interpolation,",
+        ha="center", va="center", fontsize=19.2, color=INK)
+ax.text(10.16, 0.88, "preserving the anisotropic geometry",
+        ha="center", va="center", fontsize=18.2, color=INK)
 
+ax.text(6.70, 0.25,
+        r"Same noncommuting $A,B\in\mathrm{SPD}(2)$ and $\alpha=1/2$ in both panels.",
+        ha="center", va="center", fontsize=11.2, color="#5B6678")
 
-def matrix(x, y, w=.64, h=.85, color="blue", pattern=0):
-    cols, rows = 4, 5
-    cw, ch = w / cols, h / rows
-    for i in range(rows):
-        for j in range(cols):
-            alpha = .18 + .13 * ((2*i + j + pattern) % 4)
-            ax.add_patch(Rectangle((x + j*cw + .012, y + i*ch + .012),
-                                   cw - .025, ch - .025, facecolor=C[color],
-                                   edgecolor="none", alpha=alpha))
-    ax.add_patch(Rectangle((x, y), w, h, fill=False, edgecolor=C[color], linewidth=1.10))
-
-
-def arrow(start, end, color="gray", width=1.65, style="-|>", scale=13,
-          connection="arc3"):
-    ax.add_patch(FancyArrowPatch(start, end, arrowstyle=style, mutation_scale=scale,
-                                 linewidth=width, color=C[color],
-                                 connectionstyle=connection))
-
-
-# Top row: the full optimizer update.
-top_y, top_h, top_w = 4.04, 3.31, 3.18
-top_x = [.28, 3.89, 7.50, 11.11, 14.72]
-for args in [
-    (top_x[0], "blue", "Matrix gradient", "Independent parameter tile"),
-    (top_x[1], "blue", "First moment", "Shared momentum path"),
-    (top_x[2], "green", "SPD statistics", "Left and right covariance"),
-    (top_x[3], "green", "Precondition + match", "Cached inverse roots"),
-    (top_x[4], "purple", "Parameter update", "Shared weight decay and step"),
-]:
-    box(args[0], top_y, top_w, top_h, args[1], args[2], args[3])
-for x in [3.49, 7.10, 10.71, 14.32]:
-    arrow((x, 5.73), (x+.33, 5.73), "blue")
-
-# 1: gradient and parameter tile.
-matrix(.82, 5.31, .75, 1.04, "orange", 0)
-matrix(2.15, 5.31, .75, 1.04, "blue", 1)
-txt(1.19, 5.10, r"$G_t$", 12, "orange")
-txt(2.52, 5.10, r"$W_t$", 12, "blue")
-txt(1.87, 4.54, r"$G_t=\nabla_{W}\mathcal{L}_t$", 13)
-
-# 2: shared momentum, visualized as old state + gradient -> new state.
-matrix(4.20, 5.38, .52, .83, "blue", 1)
-matrix(5.15, 5.38, .52, .83, "orange", 2)
-matrix(6.11, 5.38, .52, .83, "blue", 3)
-txt(4.46, 5.20, r"$M_{t-1}$", 10, "blue")
-txt(5.41, 5.20, r"$G_t$", 10, "orange")
-txt(6.37, 5.20, r"$M_t$", 10, "blue")
-txt(4.94, 5.81, "+", 17, "muted")
-txt(5.90, 5.81, "=", 15, "muted")
-txt(5.48, 4.67, r"$M_t=\beta_1M_{t-1}+(1-\beta_1)G_t$", 10.6)
-txt(5.48, 4.32, r"$\widehat M_t=M_t/(1-\beta_1^t)$", 10.6)
-
-# 3: the two per-axis Gram statistics.
-matrix(8.11, 5.43, .70, .76, "green", 1)
-matrix(9.74, 5.43, .70, .76, "green", 3)
-txt(8.46, 5.19, r"$S_{L,t}$", 11, "green")
-txt(10.09, 5.19, r"$S_{R,t}$", 11, "green")
-txt(9.09, 4.66, r"$S_{L,t}=G_tG_t^\top/n+\varepsilon I_m$", 10.4)
-txt(9.09, 4.32, r"$S_{R,t}=G_t^\top G_t/m+\varepsilon I_n$", 10.4)
-
-# 4: preconditioning and norm matching.
-for x, color, name, pat in [(11.39, "green", r"$\widetilde L_t^{-1/2}$", 0),
-                            (12.26, "blue", r"$\widehat M_t$", 1),
-                            (13.13, "green", r"$\widetilde R_t^{-1/2}$", 2)]:
-    matrix(x, 5.48, .57, .72, color, pat)
-    txt(x+.285, 5.23, name, 9.8, color)
-txt(12.69, 4.69, r"$D_t^0=\widetilde L_t^{-1/2}\widehat M_t\widetilde R_t^{-1/2}$", 10.3)
-txt(12.69, 4.33, r"$s_t=\operatorname{clip}_{[s_-,s_+]}\!\left(\|\widehat M_t\|_F/(\|D_t^0\|_F+\varepsilon)\right)$", 9.1)
-
-# 5: decoupled decay and parameter update.
-matrix(15.06, 5.47, .57, .72, "blue", 1)
-matrix(16.00, 5.47, .57, .72, "purple", 2)
-matrix(16.94, 5.47, .57, .72, "blue", 3)
-txt(15.345, 5.22, r"$W_t$", 10.2, "blue")
-txt(16.285, 5.22, r"$s_tD_t^0$", 9.8, "purple")
-txt(17.225, 5.22, r"$W_{t+1}$", 10.2, "blue")
-txt(15.80, 5.84, "−", 15, "muted")
-txt(16.74, 5.84, "=", 15, "muted")
-txt(16.30, 4.54, r"$W_{t+1}=(1-\eta_t\lambda_{\rm wd})W_t-\eta_ts_tD_t^0$", 10.0)
-
-# Lower row: expand the geometric covariance branch.
-low_y, low_h = .55, 3.10
-box(.28, low_y, 5.40, low_h, "green", "1. Optimal transport map", "SPD state A and instantaneous statistic B")
-box(5.90, low_y, 5.81, low_h, "green", "2. Bures covariance average", "Applied independently to left and right states")
-box(11.93, low_y, 5.97, low_h, "green", "3. Clip + cached inverse roots", "Stable spectral bounds; periodic root refresh")
-
-# Lower 1: transport map.
-for x, label_, pat in [(1.05, r"$A$", 0), (2.50, r"$T(A,B)$", 2), (3.95, r"$B$", 3)]:
-    matrix(x, 1.93, .77, .83, "green", pat)
-    txt(x+.385, 1.77, label_, 10.5, "green")
-arrow((1.93, 2.34), (2.38, 2.34), "green", 1.6)
-arrow((3.38, 2.34), (3.83, 2.34), "green", 1.6)
-txt(2.98, 1.34, r"$T(A,B)=A^{-1/2}(A^{1/2}BA^{1/2})^{1/2}A^{-1/2}$", 11)
-txt(2.98, .91, r"$T(A,B)\,A\,T(A,B)=B$", 10.6, "muted")
-
-# Lower 2: geodesic rather than Euclidean averaging.
-ax.add_patch(Ellipse((6.81, 2.31), .82, .52, angle=24,
-                     facecolor=C["green_bg"], edgecolor=C["green"], linewidth=1.4))
-ax.add_patch(Ellipse((10.76, 2.31), .65, .82, angle=-21,
-                     facecolor=C["green_bg"], edgecolor=C["green"], linewidth=1.4))
-txt(6.81, 2.31, r"$C_{t-1}$", 10.5, "green")
-txt(10.76, 2.31, r"$S_t$", 10.5, "green")
-arrow((7.28, 2.55), (10.40, 2.53), "green", 2.0, connection="arc3,rad=-.12")
-ax.plot([7.27, 10.40], [2.16, 2.16], color=C["gray"], lw=1.1, ls=(0, (4, 3)))
-txt(8.81, 1.97, "Euclidean EMA baseline", 8.6, "muted")
-txt(8.80, 1.42, r"$H_t=\beta_2I+(1-\beta_2)T(C_{t-1},S_t)$", 10.7)
-txt(8.80, 1.00, r"$C_t^{\rm raw}=H_tC_{t-1}H_t$", 10.8)
-
-# Lower 3: clipping and inverse-root cache.
-matrix(12.57, 2.00, .77, .78, "green", 1)
-matrix(14.65, 2.00, .77, .78, "green", 3)
-matrix(16.55, 2.00, .77, .78, "green", 2)
-txt(12.955, 1.81, r"$C_t^{\rm raw}$", 10.3, "green")
-txt(15.035, 1.81, r"$C_t$", 10.3, "green")
-txt(16.935, 1.81, r"$C_t^{-1/2}$", 10.3, "green")
-arrow((13.43, 2.39), (14.52, 2.39), "green")
-arrow((15.51, 2.39), (16.43, 2.39), "green")
-txt(14.93, 1.35, r"$C_t=\mathrm{ClipSPD}(C_t^{\rm raw};\lambda_{\min},\lambda_{\max})$", 10.7)
-txt(14.93, .95, r"$\widetilde L_t^{-1/2}=L_{r(t)}^{-1/2},\quad\widetilde R_t^{-1/2}=R_{r(t)}^{-1/2}$", 10.7)
-
-# Geometry subflow and the next-iteration return.
-arrow((9.10, 4.01), (9.10, 3.72), "green", 2.0)
-arrow((5.70, 2.09), (5.84, 2.09), "green", 1.8)
-arrow((11.73, 2.09), (11.87, 2.09), "green", 1.8)
-arrow((13.32, 3.70), (13.32, 3.99), "green", 2.0)
-ax.plot([17.96, 17.96, .10, .10], [5.67, .12, .12, 5.67], color=C["purple"], lw=1.2)
-arrow((.10, 5.67), (.24, 5.67), "purple", 1.2, scale=10)
-txt(9.05, .32, "next iteration: updated weights, momentum, and SPD states", 9.0, "purple")
-
-fig.savefig(OUT, facecolor="white", dpi=190, bbox_inches="tight", pad_inches=.055)
+fig.savefig(OUT, dpi=205, bbox_inches="tight", pad_inches=0.10)
 plt.close(fig)
 print(OUT)

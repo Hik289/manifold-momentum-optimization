@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/buresmomentum_method_illustration.png" width="96%" alt="Illustrated BuresMomentum update with a Bures covariance path, paired Euclidean averaging baseline, spectral clipping, preconditioning, and parameter step">
+  <img src="assets/fig_buresmomentum_method.png" width="96%" alt="BuresMomentum method: gradient and first moment, left/right covariance statistics, Bures transport and averaging, spectral clipping, two-sided preconditioning, and parameter update; dashed Euclidean EMA baseline">
 </p>
 
 BuresMomentum changes **how the left and right covariance states are averaged**. The matrix gradient, first moment, inverse-root preconditioning, norm matching, and parameter step are shared with a paired Euclidean–Kronecker optimizer. This isolates the effect of Bures–Wasserstein (BW) geometry.

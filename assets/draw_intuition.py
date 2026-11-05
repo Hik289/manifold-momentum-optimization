@@ -1,115 +1,172 @@
-"""Render the README method diagram as a publication-style PNG."""
+"""Draw the detailed BuresMomentum method figure used in the README."""
 from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Arc, Ellipse, FancyArrowPatch, FancyBboxPatch, Rectangle
+from matplotlib.patches import Ellipse, FancyArrowPatch, FancyBboxPatch, Rectangle
 
 OUT = Path(__file__).with_name("buresmomentum_intuition.png")
-NAVY = "#14233B"
-MUTED = "#58667D"
-LINE = "#D8E0E9"
-TEAL = "#0D8479"
-BLUE = "#3B6FCC"
-ORANGE = "#D98142"
-PALE = "#F7F9FC"
+C = {
+    "ink": "#17263C", "muted": "#637188", "line": "#D8E1EC",
+    "blue": "#326AC6", "blue_bg": "#EFF5FF",
+    "orange": "#D78243", "orange_bg": "#FFF3EA",
+    "green": "#0E8576", "green_bg": "#EAF7F3",
+    "purple": "#8A65C7", "purple_bg": "#F6F0FD",
+    "gray": "#AEBBCC",
+}
 
-
-def label(ax, x, y, value, size=12, color=NAVY, weight="normal", **kwargs):
-    ax.text(x, y, value, fontsize=size, color=color, fontweight=weight,
-            va="center", ha="center", family="DejaVu Sans", **kwargs)
-
-
-def card(ax, x, number, title, subtitle, accent):
-    ax.add_patch(FancyBboxPatch((x, 0.95), 3.43, 3.98,
-                                boxstyle="round,pad=0.025,rounding_size=0.12",
-                                facecolor="white", edgecolor=LINE, linewidth=1.1))
-    ax.add_patch(FancyBboxPatch((x + .18, 4.56), .36, .27,
-                                boxstyle="round,pad=0.02,rounding_size=0.08",
-                                facecolor=accent, edgecolor="none"))
-    label(ax, x + .36, 4.695, str(number), 9, "white", "bold")
-    ax.text(x + .19, 4.25, title, fontsize=14, color=NAVY, fontweight="bold",
-            va="center", family="DejaVu Sans")
-    ax.text(x + .19, 3.91, subtitle, fontsize=9.2, color=MUTED,
-            va="center", family="DejaVu Sans")
-
-
-def matrix(ax, x, y, color, width=.29, n=4, pattern=0):
-    for i in range(n):
-        for j in range(n):
-            alpha = .22 + .12 * ((i * 2 + j + pattern) % 4)
-            ax.add_patch(Rectangle((x + j * width, y + (n - 1 - i) * width),
-                                   width - .025, width - .025,
-                                   facecolor=color, edgecolor="none", alpha=alpha))
-    ax.add_patch(Rectangle((x - .018, y - .018), n * width + .01, n * width + .01,
-                           fill=False, edgecolor=color, linewidth=1.2))
-
-
-fig, ax = plt.subplots(figsize=(16, 6), dpi=190)
+fig, ax = plt.subplots(figsize=(18, 7.6), dpi=190)
 fig.patch.set_facecolor("white")
-ax.set(xlim=(0, 16), ylim=(0, 6))
+ax.set(xlim=(0, 18), ylim=(0, 7.6))
 ax.axis("off")
 
-ax.text(.53, 5.58, "BuresMomentum", fontsize=24, color=NAVY,
-        fontweight="bold", va="center", family="DejaVu Sans")
-ax.text(5.15, 5.58, "Geometric covariance averaging for matrix optimization",
-        fontsize=12.2, color=MUTED, va="center", family="DejaVu Sans")
-ax.plot([.53, 15.5], [5.30, 5.30], color=LINE, linewidth=1)
 
-xs = [.53, 4.38, 8.23, 12.08]
-card(ax, xs[0], 1, "Matrix gradient", "Shared first-moment update", BLUE)
-card(ax, xs[1], 2, "Two-sided statistics", "One SPD state for each axis", BLUE)
-card(ax, xs[2], 3, "Bures transport", "The only change from Euclidean EMA", TEAL)
-card(ax, xs[3], 4, "Preconditioned step", "Shared norm matching and update", ORANGE)
+def txt(x, y, value, size=11, color="ink", weight="normal", ha="center"):
+    ax.text(x, y, value, fontsize=size, color=C.get(color, color), fontweight=weight,
+            va="center", ha=ha, family="DejaVu Sans")
 
-for x in (3.98, 7.83, 11.68):
-    ax.add_patch(FancyArrowPatch((x, 2.92), (x + .34, 2.92),
-                                 arrowstyle="-|>", mutation_scale=15,
-                                 linewidth=1.6, color="#A2AEC0"))
 
-matrix(ax, 1.64, 2.45, BLUE, width=.275, pattern=1)
-label(ax, 2.19, 2.13, r"$G_t=\nabla_W\mathcal{L}_t$", 15)
-label(ax, 2.25, 1.53, r"$M_t=\beta_1M_{t-1}+(1-\beta_1)G_t$", 12)
+def box(x, y, w, h, accent, title, subtitle):
+    ax.add_patch(FancyBboxPatch((x, y), w, h,
+                                boxstyle="round,pad=0.025,rounding_size=0.10",
+                                facecolor="white", edgecolor=C["line"], linewidth=1.10))
+    ax.add_patch(FancyBboxPatch((x + .12, y + h - .16), w - .24, .045,
+                                boxstyle="round,pad=0.0,rounding_size=0.02",
+                                facecolor=C[accent], edgecolor="none"))
+    txt(x + .18, y + h - .41, title, 12.0, "ink", "bold", ha="left")
+    txt(x + .18, y + h - .68, subtitle, 8.4, "muted", ha="left")
 
-matrix(ax, 4.82, 2.59, TEAL, width=.22, pattern=0)
-matrix(ax, 6.50, 2.59, TEAL, width=.22, pattern=2)
-label(ax, 5.28, 2.25, r"$S_L$", 14, TEAL, "bold")
-label(ax, 6.96, 2.25, r"$S_R$", 14, TEAL, "bold")
-label(ax, 6.10, 1.72, r"$S_L=G_tG_t^\top/n+\epsilon I$", 11.5)
-label(ax, 6.10, 1.37, r"$S_R=G_t^\top G_t/m+\epsilon I$", 11.5)
 
-ax.add_patch(Ellipse((8.95, 2.78), 1.00, .68, angle=26, facecolor="#DDEDEB",
-                     edgecolor=TEAL, linewidth=1.5))
-ax.add_patch(Ellipse((10.90, 2.78), .75, 1.02, angle=-28, facecolor="#DDEDEB",
-                     edgecolor=TEAL, linewidth=1.5))
-label(ax, 8.93, 2.76, r"$C_{t-1}$", 12, TEAL, "bold")
-label(ax, 10.91, 2.75, r"$S_t$", 12, TEAL, "bold")
-ax.add_patch(FancyArrowPatch((9.45, 3.06), (10.50, 3.07),
-                             connectionstyle="arc3,rad=-.43", arrowstyle="-|>",
-                             mutation_scale=14, linewidth=2.1, color=TEAL))
-label(ax, 9.91, 3.47, "BW geodesic", 10, TEAL, "bold")
-ax.plot([9.42, 10.49], [2.50, 2.50], color="#ADB6C1", linestyle=(0, (4, 3)), linewidth=1.1)
-label(ax, 9.95, 2.25, "Euclidean EMA", 8.4, MUTED)
-label(ax, 9.97, 1.52, r"$C_t=\mathrm{ClipSPD}\!\left(\mathrm{Bar}_{\mathrm{BW}}(C_{t-1},S_t)\right)$", 11.2)
+def matrix(x, y, w=.64, h=.85, color="blue", pattern=0):
+    cols, rows = 4, 5
+    cw, ch = w / cols, h / rows
+    for i in range(rows):
+        for j in range(cols):
+            alpha = .18 + .13 * ((2*i + j + pattern) % 4)
+            ax.add_patch(Rectangle((x + j*cw + .012, y + i*ch + .012),
+                                   cw - .025, ch - .025, facecolor=C[color],
+                                   edgecolor="none", alpha=alpha))
+    ax.add_patch(Rectangle((x, y), w, h, fill=False, edgecolor=C[color], linewidth=1.10))
 
-matrix(ax, 12.61, 2.64, TEAL, width=.20, pattern=1)
-matrix(ax, 13.66, 2.64, BLUE, width=.20, pattern=0)
-matrix(ax, 14.71, 2.64, TEAL, width=.20, pattern=3)
-label(ax, 13.03, 2.28, r"$L_t^{-1/2}$", 11, TEAL)
-label(ax, 14.08, 2.28, r"$\hat M_t$", 11, BLUE)
-label(ax, 15.13, 2.28, r"$R_t^{-1/2}$", 11, TEAL)
-label(ax, 13.95, 1.72, r"$D_t=L_t^{-1/2}\hat M_t R_t^{-1/2}$", 12)
-label(ax, 13.95, 1.34, r"$W_{t+1}=W_t-\eta_t s_tD_t$", 12)
 
-ax.add_patch(FancyBboxPatch((.53, .18), 14.98, .48,
-                            boxstyle="round,pad=0.03,rounding_size=0.09",
-                            facecolor=PALE, edgecolor=LINE, linewidth=.8))
-ax.add_patch(Rectangle((.72, .31), .14, .14, facecolor=TEAL, edgecolor="none"))
-ax.text(1.00, .38,
-        "Controlled comparison: BuresMomentum and Euclidean-Kronecker differ only in covariance-state averaging.",
-        fontsize=11.2, color=NAVY, va="center", family="DejaVu Sans")
+def arrow(start, end, color="gray", width=1.65, style="-|>", scale=13,
+          connection="arc3"):
+    ax.add_patch(FancyArrowPatch(start, end, arrowstyle=style, mutation_scale=scale,
+                                 linewidth=width, color=C[color],
+                                 connectionstyle=connection))
 
-fig.savefig(OUT, dpi=190, facecolor="white", bbox_inches="tight", pad_inches=.08)
+
+# Top row: the full optimizer update.
+top_y, top_h, top_w = 4.04, 3.31, 3.18
+top_x = [.28, 3.89, 7.50, 11.11, 14.72]
+for args in [
+    (top_x[0], "blue", "Matrix gradient", "Independent parameter tile"),
+    (top_x[1], "blue", "First moment", "Shared momentum path"),
+    (top_x[2], "green", "SPD statistics", "Left and right covariance"),
+    (top_x[3], "green", "Precondition + match", "Cached inverse roots"),
+    (top_x[4], "purple", "Parameter update", "Shared weight decay and step"),
+]:
+    box(args[0], top_y, top_w, top_h, args[1], args[2], args[3])
+for x in [3.49, 7.10, 10.71, 14.32]:
+    arrow((x, 5.73), (x+.33, 5.73), "blue")
+
+# 1: gradient and parameter tile.
+matrix(.82, 5.31, .75, 1.04, "orange", 0)
+matrix(2.15, 5.31, .75, 1.04, "blue", 1)
+txt(1.19, 5.10, r"$G_t$", 12, "orange")
+txt(2.52, 5.10, r"$W_t$", 12, "blue")
+txt(1.87, 4.54, r"$G_t=\nabla_{W}\mathcal{L}_t$", 13)
+
+# 2: shared momentum, visualized as old state + gradient -> new state.
+matrix(4.20, 5.38, .52, .83, "blue", 1)
+matrix(5.15, 5.38, .52, .83, "orange", 2)
+matrix(6.11, 5.38, .52, .83, "blue", 3)
+txt(4.46, 5.20, r"$M_{t-1}$", 10, "blue")
+txt(5.41, 5.20, r"$G_t$", 10, "orange")
+txt(6.37, 5.20, r"$M_t$", 10, "blue")
+txt(4.94, 5.81, "+", 17, "muted")
+txt(5.90, 5.81, "=", 15, "muted")
+txt(5.48, 4.67, r"$M_t=\beta_1M_{t-1}+(1-\beta_1)G_t$", 10.6)
+txt(5.48, 4.32, r"$\widehat M_t=M_t/(1-\beta_1^t)$", 10.6)
+
+# 3: the two per-axis Gram statistics.
+matrix(8.11, 5.43, .70, .76, "green", 1)
+matrix(9.74, 5.43, .70, .76, "green", 3)
+txt(8.46, 5.19, r"$S_{L,t}$", 11, "green")
+txt(10.09, 5.19, r"$S_{R,t}$", 11, "green")
+txt(9.09, 4.66, r"$S_{L,t}=G_tG_t^\top/n+\varepsilon I_m$", 10.4)
+txt(9.09, 4.32, r"$S_{R,t}=G_t^\top G_t/m+\varepsilon I_n$", 10.4)
+
+# 4: preconditioning and norm matching.
+for x, color, name, pat in [(11.39, "green", r"$\widetilde L_t^{-1/2}$", 0),
+                            (12.26, "blue", r"$\widehat M_t$", 1),
+                            (13.13, "green", r"$\widetilde R_t^{-1/2}$", 2)]:
+    matrix(x, 5.48, .57, .72, color, pat)
+    txt(x+.285, 5.23, name, 9.8, color)
+txt(12.69, 4.69, r"$D_t^0=\widetilde L_t^{-1/2}\widehat M_t\widetilde R_t^{-1/2}$", 10.3)
+txt(12.69, 4.33, r"$s_t=\operatorname{clip}_{[s_-,s_+]}\!\left(\|\widehat M_t\|_F/(\|D_t^0\|_F+\varepsilon)\right)$", 9.1)
+
+# 5: decoupled decay and parameter update.
+matrix(15.06, 5.47, .57, .72, "blue", 1)
+matrix(16.00, 5.47, .57, .72, "purple", 2)
+matrix(16.94, 5.47, .57, .72, "blue", 3)
+txt(15.345, 5.22, r"$W_t$", 10.2, "blue")
+txt(16.285, 5.22, r"$s_tD_t^0$", 9.8, "purple")
+txt(17.225, 5.22, r"$W_{t+1}$", 10.2, "blue")
+txt(15.80, 5.84, "−", 15, "muted")
+txt(16.74, 5.84, "=", 15, "muted")
+txt(16.30, 4.54, r"$W_{t+1}=(1-\eta_t\lambda_{\rm wd})W_t-\eta_ts_tD_t^0$", 10.0)
+
+# Lower row: expand the geometric covariance branch.
+low_y, low_h = .55, 3.10
+box(.28, low_y, 5.40, low_h, "green", "1. Optimal transport map", "SPD state A and instantaneous statistic B")
+box(5.90, low_y, 5.81, low_h, "green", "2. Bures covariance average", "Applied independently to left and right states")
+box(11.93, low_y, 5.97, low_h, "green", "3. Clip + cached inverse roots", "Stable spectral bounds; periodic root refresh")
+
+# Lower 1: transport map.
+for x, label_, pat in [(1.05, r"$A$", 0), (2.50, r"$T(A,B)$", 2), (3.95, r"$B$", 3)]:
+    matrix(x, 1.93, .77, .83, "green", pat)
+    txt(x+.385, 1.77, label_, 10.5, "green")
+arrow((1.93, 2.34), (2.38, 2.34), "green", 1.6)
+arrow((3.38, 2.34), (3.83, 2.34), "green", 1.6)
+txt(2.98, 1.34, r"$T(A,B)=A^{-1/2}(A^{1/2}BA^{1/2})^{1/2}A^{-1/2}$", 11)
+txt(2.98, .91, r"$T(A,B)\,A\,T(A,B)=B$", 10.6, "muted")
+
+# Lower 2: geodesic rather than Euclidean averaging.
+ax.add_patch(Ellipse((6.81, 2.31), .82, .52, angle=24,
+                     facecolor=C["green_bg"], edgecolor=C["green"], linewidth=1.4))
+ax.add_patch(Ellipse((10.76, 2.31), .65, .82, angle=-21,
+                     facecolor=C["green_bg"], edgecolor=C["green"], linewidth=1.4))
+txt(6.81, 2.31, r"$C_{t-1}$", 10.5, "green")
+txt(10.76, 2.31, r"$S_t$", 10.5, "green")
+arrow((7.28, 2.55), (10.40, 2.53), "green", 2.0, connection="arc3,rad=-.12")
+ax.plot([7.27, 10.40], [2.16, 2.16], color=C["gray"], lw=1.1, ls=(0, (4, 3)))
+txt(8.81, 1.97, "Euclidean EMA baseline", 8.6, "muted")
+txt(8.80, 1.42, r"$H_t=\beta_2I+(1-\beta_2)T(C_{t-1},S_t)$", 10.7)
+txt(8.80, 1.00, r"$C_t^{\rm raw}=H_tC_{t-1}H_t$", 10.8)
+
+# Lower 3: clipping and inverse-root cache.
+matrix(12.57, 2.00, .77, .78, "green", 1)
+matrix(14.65, 2.00, .77, .78, "green", 3)
+matrix(16.55, 2.00, .77, .78, "green", 2)
+txt(12.955, 1.81, r"$C_t^{\rm raw}$", 10.3, "green")
+txt(15.035, 1.81, r"$C_t$", 10.3, "green")
+txt(16.935, 1.81, r"$C_t^{-1/2}$", 10.3, "green")
+arrow((13.43, 2.39), (14.52, 2.39), "green")
+arrow((15.51, 2.39), (16.43, 2.39), "green")
+txt(14.93, 1.35, r"$C_t=\mathrm{ClipSPD}(C_t^{\rm raw};\lambda_{\min},\lambda_{\max})$", 10.7)
+txt(14.93, .95, r"$\widetilde L_t^{-1/2}=L_{r(t)}^{-1/2},\quad\widetilde R_t^{-1/2}=R_{r(t)}^{-1/2}$", 10.7)
+
+# Geometry subflow and the next-iteration return.
+arrow((9.10, 4.01), (9.10, 3.72), "green", 2.0)
+arrow((5.70, 2.09), (5.84, 2.09), "green", 1.8)
+arrow((11.73, 2.09), (11.87, 2.09), "green", 1.8)
+arrow((13.32, 3.70), (13.32, 3.99), "green", 2.0)
+ax.plot([17.96, 17.96, .10, .10], [5.67, .12, .12, 5.67], color=C["purple"], lw=1.2)
+arrow((.10, 5.67), (.24, 5.67), "purple", 1.2, scale=10)
+txt(9.05, .32, "next iteration: updated weights, momentum, and SPD states", 9.0, "purple")
+
+fig.savefig(OUT, facecolor="white", dpi=190, bbox_inches="tight", pad_inches=.055)
 plt.close(fig)
 print(OUT)

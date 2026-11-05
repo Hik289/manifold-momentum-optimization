@@ -1,21 +1,35 @@
-<div align="center">
+<h1 align="center">BuresMomentum</h1>
+<p align="center"><strong>Bures–Wasserstein covariance averaging for matrix preconditioning</strong></p>
+<p align="center">Official PyTorch implementation and experiment suite.</p>
 
-# BuresMomentum
+<p align="center">
+  <a href="https://github.com/Hik289/manifold-momentum-optimization/actions/workflows/ci.yml"><img src="https://github.com/Hik289/manifold-momentum-optimization/actions/workflows/ci.yml/badge.svg" alt="Core checks"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg" alt="Python 3.10+"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/PyTorch-2.1%2B-EE4C2C.svg" alt="PyTorch 2.1+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-0D8479.svg" alt="MIT License"></a>
+</p>
 
-### Bures–Wasserstein covariance averaging for matrix preconditioning
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#reproducing-experiments">Experiments</a> ·
+  <a href="#repository-map">Code map</a>
+</p>
 
-[![Core checks](https://github.com/Hik289/manifold-momentum-optimization/actions/workflows/ci.yml/badge.svg)](https://github.com/Hik289/manifold-momentum-optimization/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-0D8479)](LICENSE)
-
-[**Install**](#installation) · [**Quick start**](#quick-start) · [**Reproduce**](#reproducing-experiments) · [**Code map**](#repository-map)
-
-</div>
-
-![Four-stage BuresMomentum update: matrix gradient, two-sided statistics, Bures covariance transport, and the preconditioned parameter step.](assets/buresmomentum_intuition.png)
+<p align="center">
+  <img src="assets/buresmomentum_intuition.png" width="96%" alt="Detailed BuresMomentum matrix update schematic">
+</p>
 
 BuresMomentum changes **how the left and right covariance states are averaged**. The matrix gradient, first moment, inverse-root preconditioning, norm matching, and parameter step are shared with a paired Euclidean–Kronecker optimizer. This isolates the effect of Bures–Wasserstein (BW) geometry.
+
+## At a glance
+
+| | |
+|:--|:--|
+| **Core idea** | Update two-sided SPD covariance states by a BW two-point barycenter. |
+| **Controlled baseline** | `covariance_rule="euclidean"` changes only the covariance averaging step. |
+| **Fast verification** | 15 numerical geometry checks and a deterministic CPU quickstart. |
+| **Reproduction** | Declared job manifests, data preparation, matched runners, and diagnostics. |
 
 For a matrix gradient $G_t$, the two statistics are
 

@@ -1,11 +1,8 @@
 <h1 align="center">BuresMomentum</h1>
 <p align="center"><strong>Bures–Wasserstein covariance averaging for matrix preconditioning</strong></p>
-<p align="center">Official PyTorch implementation and experiment suite.</p>
 
 <p align="center">
-  <a href="https://github.com/Hik289/manifold-momentum-optimization/actions/workflows/ci.yml"><img src="https://github.com/Hik289/manifold-momentum-optimization/actions/workflows/ci.yml/badge.svg" alt="Core checks"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg" alt="Python 3.10+"></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/PyTorch-2.1%2B-EE4C2C.svg" alt="PyTorch 2.1+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-0D8479.svg" alt="MIT License"></a>
 </p>
 
@@ -13,32 +10,17 @@
   <img src="assets/fig_buresmomentum_method.png" width="96%" alt="BuresMomentum method: gradient and first moment, left/right covariance statistics, Bures transport and averaging, spectral clipping, two-sided preconditioning, and parameter update; dashed Euclidean EMA baseline">
 </p>
 
-BuresMomentum changes **how the left and right covariance states are averaged**. The matrix gradient, first moment, inverse-root preconditioning, norm matching, and parameter step are shared with a paired Euclidean–Kronecker optimizer. This isolates the effect of Bures–Wasserstein (BW) geometry.
+## Method
 
-## At a glance
-
-| | |
-|:--|:--|
-| **Core idea** | Update two-sided SPD covariance states by a BW two-point barycenter. |
-| **Controlled baseline** | `covariance_rule="euclidean"` changes only the covariance averaging step. |
-| **Fast verification** | 15 numerical geometry checks and a deterministic CPU quickstart. |
-| **Reproduction** | Declared job manifests, data preparation, matched runners, and diagnostics. |
-
-For a matrix gradient $G_t$, the two statistics are
+BuresMomentum maintains separate positive-definite covariance states for the rows and columns of each matrix parameter. Each gradient supplies a new statistic for both states. The update moves each state toward its statistic along a Bures–Wasserstein geodesic, then bounds its spectrum:
 
 $$
-S_{L,t}=G_tG_t^\top/n+\varepsilon I,\qquad
-S_{R,t}=G_t^\top G_t/m+\varepsilon I.
+C_t=\mathrm{ClipSPD}\!\left(\mathrm{Bar}_{\mathrm{BW}}(C_{t-1},S_t;\,1-\beta_2)\right).
 $$
 
-Each SPD state uses a two-point BW barycenter before spectral clipping. The resulting inverse square roots precondition the bias-corrected first moment:
+Here $C$ denotes either covariance state, and $S_t$ its current gradient statistic. The inverse square roots of the updated states precondition the bias-corrected first moment on both sides. A bounded Frobenius-norm match sets the direction's scale before the parameter step.
 
-$$
-C_t=\mathrm{ClipSPD}\!\left(\mathrm{Bar}_{\mathrm{BW}}(C_{t-1},S_t)\right),\qquad
-D_t=L_t^{-1/2}\widehat M_tR_t^{-1/2}.
-$$
-
-The optimizer also supports the matched Euclidean update through `covariance_rule="euclidean"`. That switch changes the covariance averaging rule while retaining the same implementation path and hyperparameters.
+Setting `covariance_rule="euclidean"` replaces only the Bures average with an arithmetic moving average. The gradient, first moment, spectral clipping, preconditioner, norm match, and parameter update use the same path in both variants.
 
 ## Installation
 
@@ -89,63 +71,6 @@ python experiments/tests/test_numerical.py --out /tmp/bures-numerical.json
 ```
 
 The numerical suite checks SPD symmetry/positivity, transport identities, geodesics, the covariance update, block behavior, cache consistency, and mixed precision.
-
-## Reproducing experiments
-
-Job manifests are versioned under `experiments/*/jobs*.json`. They specify the task, method, learning rate, seed, and budget. Runners write per-run JSON histories under `experiments/extension/results/`; the directory is ignored by Git. **No dataset, model checkpoint, remote-machine configuration, or run log is required to install the optimizer.**
-
-### One declared architecture job
-
-Prepare the small public Wine Quality files and run one declared CPU job:
-
-```bash
-python experiments/expansion/prepare_data.py --wine-only
-python scripts/run_expansion_job.py \
-  exp2_tabular_wine_red_mlp64_bures_0.0003 --device cpu
-```
-
-To make a paired comparison, run the `adamw` and `euclidean` IDs with the same task/model/rate suffix. The full job budget comes from the manifest; these commands are not a shortened demonstration.
-
-For CIFAR-10, CIFAR-100, and Fashion-MNIST jobs, `torchvision` downloads data into `data/vision/` on first use. Graph jobs use PyTorch Geometric's Planetoid loader. Word-language jobs require the prepared WikiText files:
-
-```bash
-python experiments/expansion/prepare_data.py
-```
-
-The preparation code records source revisions and split hashes. See the runner and the job manifest before changing data splits or budgets.
-
-### Additional experiment families
-
-| Family | Entry point | Data and scope |
-|:--|:--|:--|
-| Core geometry | `experiments/tests/test_numerical.py` | Synthetic SPD matrices; no download |
-| Graph, vision, tabular, language, SciML | `experiments/extension/run_task.py` | Declared jobs in `experiments/extension/` |
-| Architecture expansion | `experiments/expansion/run_benchmark.py` | Declared jobs in `experiments/expansion/jobs.json` |
-| Fixed new-task study | `experiments/new_tasks/prepare.py`, then `experiments/new_tasks/dispatch.py` | Six declared tasks; full tuning and seed grid |
-| Recovery and ablations | `experiments/recovery/`, `experiments/stage2/` | Matched controls and numerical diagnostics |
-| Synthetic covariance geometry | `data/synthetic/` | Deterministic generators and ground truth |
-
-The code retains failed and incomplete runs in the recorded histories. Validation data select hyperparameters and checkpoints; test data are evaluated only after selection. A single favorable configuration should be read as descriptive evidence, not as a task-family significance result.
-
-## Repository map
-
-```text
-experiments/bures/       Optimizer and BW/SPD geometry primitives
-experiments/tests/       Numerical and protocol checks
-experiments/pipeline/    Shared optimizer interface and diagnostics
-experiments/stage1/      Initial task-family runners
-experiments/stage2/      Mechanism and ablation experiments
-experiments/extension/   Long-budget task runners and result builders
-experiments/expansion/   Architecture expansion and plotting
-experiments/new_tasks/   Fixed six-task prospective study
-experiments/recovery/    Failure-recovery controls
-data/synthetic/           Synthetic SPD processes and ground truth
-examples/                 Minimal runnable example
-scripts/                  Single-job convenience entry point
-assets/                   README diagram and its rendering source
-```
-
-The manuscript-layout utilities in `experiments/extension/` and `experiments/expansion/` operate on a separate LaTeX project and are included for completeness. The public code package does not bundle raw datasets, generated result histories, checkpoints, or the in-progress manuscript.
 
 ## Development
 

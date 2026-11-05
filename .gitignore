@@ -55,6 +55,7 @@ experiments/stage2/results_*.json
 *.pth
 *.checkpoint
 *.log
+*.pdf
 archive/
 analysis/
 output/

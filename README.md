@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/fig_buresmomentum_update_detailed.png" width="96%" alt="Detailed BuresMomentum method update: gradient, moments, SPD statistics, Bures transport and averaging, spectral clipping, preconditioning, and parameter step">
+  <img src="assets/buresmomentum_method_illustration.png" width="96%" alt="Illustrated BuresMomentum update with a Bures covariance path, paired Euclidean averaging baseline, spectral clipping, preconditioning, and parameter step">
 </p>
 
 BuresMomentum changes **how the left and right covariance states are averaged**. The matrix gradient, first moment, inverse-root preconditioning, norm matching, and parameter step are shared with a paired Euclidean–Kronecker optimizer. This isolates the effect of Bures–Wasserstein (BW) geometry.
@@ -155,7 +155,7 @@ python experiments/tests/test_numerical.py --out /tmp/bures-numerical.json
 python examples/quickstart.py
 ```
 
-The GitHub Actions workflow runs these CPU checks on every push and pull request. To redraw the README figure after editing the method diagram:
+The GitHub Actions workflow runs these CPU checks on every push and pull request. The equation-rich [technical method schematic](assets/fig_buresmomentum_update_detailed.png) can be regenerated with:
 
 ```bash
 python -m pip install matplotlib

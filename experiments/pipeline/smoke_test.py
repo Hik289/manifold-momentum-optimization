@@ -1,15 +1,8 @@
-"""
-Stage 1 管线烟雾测试 + anchor_2 部分验证.
+"""Small CPU checks for the shared optimizer interface.
 
-验证:
-  (a) 5 个优化器 (B1..B5) 都能在统一接口下跑一个小 task 且 loss 下降
-  (b) 23 项诊断量轨迹能完整记录
-  (c) anchor_2 退化恒等式: MatrixOptimizer 在 L=I,R=I (第一步前) 时
-      D_raw = M_hat  (通过 hook 精确检查)
-  (d) B3 (euclidean) 与 B5 (bures) 超参逐项一致, 仅 covariance_rule 不同
-
-小 task: 合成矩阵回归 (W: 32x32), 无需 GPU, 纯 CPU 即可.
-seed = 42.
+The checks train five optimizers on synthetic matrix regression, record their
+diagnostics, verify the identity preconditioner, and confirm that the paired
+Euclidean and Bures variants differ only in covariance_rule. Seed: 42.
 """
 
 import sys
@@ -28,7 +21,7 @@ torch.manual_seed(42)
 
 
 def make_task(m=32, n=32, device="cpu"):
-    """合成: 学习线性映射 Y = X W_true, 用 Frobenius loss."""
+    """Create a linear regression task with a 32-by-32 weight matrix."""
     W_true = torch.randn(m, n, device=device)
     X = torch.randn(256, m, device=device)
     Y = X @ W_true
@@ -56,10 +49,10 @@ def run_optimizer(name, steps=200, device="cpu"):
 
 
 def verify_degeneration():
-    """anchor_2 退化恒等式: 第一步 (L=R=I) 时 D_raw = M_hat.
+    """Check that identity preconditioners leave the first moment unchanged.
 
-    直接 hook: 用 lr=0 跑一步, 但在 Step4 前 L=R=I, 手工复算 D_raw.
-    这里通过重建单步逻辑精确验证.
+    This reconstructs the identity case directly, then runs one optimizer
+    step as a separate smoke check.
     """
     torch.manual_seed(42)
     from bures.core import spd_inv_sqrt
@@ -69,21 +62,20 @@ def verify_degeneration():
                           state_dtype=torch.float64)
     g = torch.randn(m, n)
     W.grad = g.clone()
-    # 手工: 第一步 M = (1-b1) g, M_hat = M/(1-b1) = g
+    # At the first step, bias correction makes M_hat equal to g.
     beta1 = 0.9
-    M_hat_expected = g.to(torch.float64)  # bias-corrected 第一步 == g
-    # 第一步 L,R 仍是 I (更新在 step 内, 但预条件用更新后的 L,R)
-    # 因此需检查: 若强制 L=R=I, D_raw = M_hat. 用 core 恒等验证:
+    M_hat_expected = g.to(torch.float64)
+    # With L = R = I, the inverse-root product must equal M_hat.
     Im = torch.eye(m, dtype=torch.float64)
     In = torch.eye(n, dtype=torch.float64)
     D_raw = spd_inv_sqrt(Im) @ M_hat_expected @ spd_inv_sqrt(In)
     err = (D_raw - M_hat_expected).norm().item()
-    opt.step()  # sanity: 不报错
+    opt.step()  # The complete step should also run without error.
     return err < 1e-12, err
 
 
 def verify_b3_b5_shared_hparams():
-    """B3/B5 超参逐项一致, 仅 covariance_rule 不同."""
+    """Check that the paired variants change only covariance_rule."""
     W1 = torch.nn.Parameter(torch.randn(8, 8))
     W2 = torch.nn.Parameter(torch.randn(8, 8))
     b3 = build_optimizer("euclidean_kron", [W1], lr=1e-2, weight_decay=1e-4)
@@ -101,7 +93,7 @@ def verify_b3_b5_shared_hparams():
 
 def main():
     out = {"optimizers": {}, "checks": {}}
-    print("=== (a) 5 优化器统一接口 loss 下降 ===")
+    print("=== Five optimizers reduce loss through one interface ===")
     for name in OPTIMIZER_REGISTRY:
         losses, rec = run_optimizer(name, steps=200)
         improved = losses[-1] < losses[0]
@@ -119,21 +111,21 @@ def main():
             "diag_keys_per_point": n_diag_keys,
         }
 
-    print("\n=== (c) anchor_2 退化恒等式 D_raw=M_hat (L=R=I) ===")
+    print("\n=== Identity preconditioner leaves momentum unchanged ===")
     deg_ok, deg_err = verify_degeneration()
-    print(f"  degeneration identity: err={deg_err:.2e} pass={deg_ok}")
+    print(f"  identity check: error={deg_err:.2e} pass={deg_ok}")
     out["checks"]["degeneration_identity"] = {"err": deg_err, "pass": deg_ok}
 
-    print("\n=== (d) B3/B5 共享超参, 仅 covariance_rule 不同 ===")
+    print("\n=== Paired variants share all settings except covariance_rule ===")
     shared_ok, shared_detail = verify_b3_b5_shared_hparams()
-    print(f"  shared hparams: pass={shared_ok} detail={shared_detail}")
+    print(f"  shared settings: pass={shared_ok} detail={shared_detail}")
     out["checks"]["b3_b5_shared_hparams"] = {"pass": shared_ok,
                                              "detail": shared_detail}
 
     all_improved = all(v["improved"] for v in out["optimizers"].values())
     all_ok = all_improved and deg_ok and shared_ok
     out["all_pass"] = all_ok
-    print(f"\n=== smoke test {'ALL PASS' if all_ok else 'HAS FAILURES'} ===")
+    print(f"\n=== small-run checks: {'ALL PASS' if all_ok else 'HAS FAILURES'} ===")
 
     outpath = "pipeline/smoke_results.json"
     with open(outpath, "w") as f:

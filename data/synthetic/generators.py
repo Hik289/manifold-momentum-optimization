@@ -1,20 +1,13 @@
-"""
-Synthetic SPD-dynamics generators for BuresMomentum README §10.
+"""Generate synthetic sequences of positive-definite covariance matrices.
 
-Each generator produces a *sequence* of instantaneous SPD statistics S_t
-(the observations fed to an optimizer's covariance update) AND a companion
-population ground-truth path C*_t computed by an offline high-precision routine.
-
-Ground truth is the referee for G1/G2. Generators are seed-parameterized so
-synthetic experiments may use multiple independent seeds (validate scaling
-laws), while formal DL tasks stay fixed at seed=42.
-
-All arrays float64. A generator returns a dict:
+Each sequence contains new gradient-like statistics S_t and a known target
+path C*_t. The generators accept a seed so runs can be repeated with
+different random draws. Arrays use float64. A generator returns a dictionary:
   {
     "name", "d", "T", "params", "seed",
     "S":      (T, d, d)   instantaneous SPD observations,
-    "Cstar":  (T, d, d)   population ground-truth SPD path (None if not defined),
-    ... setting-specific extra keys (e.g. tau for geodesic path) ...
+    "Cstar":  (T, d, d)   known target path (or None),
+    ... setting-specific keys, such as tau for a geodesic path ...
   }
 """
 import numpy as np
@@ -40,8 +33,7 @@ def random_skew(d, rng, scale=1.0):
 
 
 def expm_skew(Omega, t):
-    """exp(t*Omega) via eigen of skew (returns orthogonal). Uses scipy-free
-    Rodrigues-style through complex eigendecomposition."""
+    """Compute the orthogonal rotation exp(t*Omega) with SciPy."""
     from scipy.linalg import expm
     return expm(t * Omega)
 
@@ -49,7 +41,7 @@ def expm_skew(Omega, t):
 def add_wishart_noise(C, rng, dof_scale, eps_stat=1e-6):
     """Draw a noisy instantaneous SPD sample around population C:
     S = (1/dof) sum g g^T  with g ~ N(0,C). Larger dof_scale -> less noise.
-    dof = dof_scale * d. Adds eps_stat*I damping (README §2.2)."""
+    dof = dof_scale * d. Add eps_stat*I to keep the sample well conditioned."""
     d = C.shape[0]
     dof = max(int(round(dof_scale * d)), d + 1)
     L = np.linalg.cholesky(sym(C) + 1e-12 * np.eye(d))
@@ -59,7 +51,7 @@ def add_wishart_noise(C, rng, dof_scale, eps_stat=1e-6):
 
 
 # --------------------------------------------------------------------------
-# §10.1 static SPD barycenter
+# Fixed covariance
 # --------------------------------------------------------------------------
 def gen_static(d=16, T=2000, seed=42, dof_scale=8.0, eps_stat=1e-6):
     """Static population covariance C*; observations are noisy Wishart samples.
@@ -75,12 +67,12 @@ def gen_static(d=16, T=2000, seed=42, dof_scale=8.0, eps_stat=1e-6):
 
 
 # --------------------------------------------------------------------------
-# §10.2 pure scale change (commuting; fixed eigenbasis)
+# Changing eigenvalues with fixed eigenvectors
 # --------------------------------------------------------------------------
 def gen_scale(d=16, T=2000, seed=42, omega=3e-3, dof_scale=16.0, eps_stat=1e-6,
               noiseless=False):
     """C*_t = Q Lambda_t Q^T, Q fixed, lambda_{i,t}=exp(a_i + b_i sin(omega t + phi_i)).
-    Commuting case: validates closed-form Eq §4.3 / §10.2. If noiseless, S=C*."""
+    The matrices share eigenvectors. If noiseless, S equals C*."""
     rng = np.random.default_rng(seed)
     Q, _ = np.linalg.qr(rng.standard_normal((d, d)))
     a = rng.uniform(-0.5, 0.5, d)
@@ -100,7 +92,7 @@ def gen_scale(d=16, T=2000, seed=42, omega=3e-3, dof_scale=16.0, eps_stat=1e-6,
 
 
 # --------------------------------------------------------------------------
-# §10.3 pure rotation (fixed spectrum, rotating eigenvectors)
+# Rotating eigenvectors with fixed eigenvalues
 # --------------------------------------------------------------------------
 def gen_rotation(d=16, T=2000, seed=42, omega=1e-3, r=4,
                  dof_scale=16.0, eps_stat=1e-6, noiseless=False,
@@ -133,14 +125,14 @@ def gen_rotation(d=16, T=2000, seed=42, omega=1e-3, r=4,
 
 
 # --------------------------------------------------------------------------
-# §10.4 Bures geodesic path
+# Path along a BW geodesic
 # --------------------------------------------------------------------------
 def gen_geodesic(d=16, T=2000, seed=42, dof_scale=32.0, eps_stat=1e-6,
                  noiseless=True, tau_mode="ramp"):
     """C*_t = Gamma_{tau_t}(A,B) on a Bures geodesic between random endpoints A,B.
-    tau_mode: 'ramp' (linear 0->1) or 'sin' (oscillating). Records tau_t so the
-    Theorem-4 recursion tau_hat_t = beta2 tau_hat_{t-1} + (1-beta2) tau_t can be
-    checked. Default noiseless (clean geodesic to test off-geodesic error)."""
+    tau_mode is 'ramp' (linear 0 to 1) or 'sin' (oscillating). The returned
+    tau_t values allow checks of tracking along the geodesic. The default is
+    noiseless so the target path is exact."""
     rng = np.random.default_rng(seed)
     A = random_spd(d, rng, 0.5, 2.0)
     B = random_spd(d, rng, 0.5, 2.0)
@@ -163,7 +155,7 @@ def gen_geodesic(d=16, T=2000, seed=42, dof_scale=32.0, eps_stat=1e-6,
 
 
 # --------------------------------------------------------------------------
-# §10.5 abrupt change and recovery
+# Abrupt change and recovery
 # --------------------------------------------------------------------------
 def gen_jump(d=16, T=2000, seed=42, t0_frac=0.5, dof_scale=16.0, eps_stat=1e-6,
              noiseless=False):
@@ -185,7 +177,7 @@ def gen_jump(d=16, T=2000, seed=42, t0_frac=0.5, dof_scale=16.0, eps_stat=1e-6,
 
 
 # --------------------------------------------------------------------------
-# §10.6 Kronecker misspecification  Sigma = R* (x) L* + gamma E
+# Covariance that does not exactly factor as a Kronecker product
 # --------------------------------------------------------------------------
 def gen_kron_misspec(m=8, n=8, seed=42, gamma=0.0):
     """Full mn×mn covariance Sigma = R*(x)L* + gamma*E, E a non-Kronecker SPD

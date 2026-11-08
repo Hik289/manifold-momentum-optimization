@@ -1,17 +1,11 @@
-"""
-BuresMomentum (B5) 与配对基线 Euclidean-Kronecker (B3) 的 optimizer 实现.
+"""Matrix optimizers and comparison methods.
 
-设计要点 (对应 README §3, §9, hypothesis_tree H0.anchor_2 / H0.H4):
-  - B3 与 B5 **共享全部超参与实现路径**, 唯一差别 = 协方差状态更新规则:
-        B5: L_t = ClipSPD(Bar_BW(L_{t-1}, S_L))   [Bures barycenter]
-        B3: L_t = beta2 * L_{t-1} + (1-beta2) * S_L [欧氏 EMA]
-  - 其余步骤 (一阶动量 / 瞬时统计 / 逆平方根预条件 / norm matching /
-    参数更新 / SPD 谱裁剪 / root cache) 完全一致.
-  - 一维参数走 AdamW (README §3.1).
-  - 大矩阵按 block size 256 分块, 每块独立跑同一算法 (README §3.5, §6.4).
-  - SPD 状态与矩阵分解至少 FP32 (README §14.18).
-
-covariance_rule in {"bures", "euclidean"} 是 B5/B3 的唯一开关.
+BuresMomentum and its paired Euclidean baseline share the same gradient,
+momentum, preconditioner, norm matching, clipping, and parameter update. The
+`covariance_rule` setting changes only how each covariance state is averaged
+with a new gradient statistic. Non-matrix parameters use AdamW. Large
+matrices are split into independent tiles, and matrix states use at least
+float32.
 """
 
 import math
@@ -25,7 +19,7 @@ from .core import (
 
 
 def _split_blocks(d, block):
-    """把维度 d 切成 <=block 的连续块边界列表."""
+    """Split a dimension into consecutive blocks of at most `block` entries."""
     if d <= block:
         return [(0, d)]
     bounds = []
@@ -38,11 +32,12 @@ def _split_blocks(d, block):
 
 
 class MatrixOptimizer(Optimizer):
-    """统一矩阵预条件优化器. covariance_rule 切换 B5(bures)/B3(euclidean).
+    """Precondition matrix parameters using left and right covariance states.
 
-    仅对 2D 参数构造 SPD 状态; 其余参数走内置 AdamW 分支.
-    Each rectangular tile owns independent L/R/root states (schema v2).
-    Historical schema-v1 checkpoints must not be resumed with this version.
+    Set `covariance_rule` to "bures" or "euclidean" for the paired comparison.
+    Only two-dimensional parameters use matrix states; other parameters use
+    AdamW. Each matrix tile has its own states and cached roots. Checkpoints
+    made with the older shared-state layout cannot be resumed here.
     """
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.99),
@@ -52,7 +47,8 @@ class MatrixOptimizer(Optimizer):
                  adamw_eps=1e-8, state_dtype=torch.float32, ablation="full"):
         if covariance_rule not in ("bures", "euclidean", "scale_only", "ai", "log_euclidean"):
             raise ValueError(
-                "covariance_rule must be 'bures'/'euclidean'/'scale_only'")
+                "covariance_rule must be one of: bures, euclidean, "
+                "scale_only, ai, log_euclidean")
         defaults = dict(
             lr=lr, betas=betas, eps_stat=eps_stat, eps_norm=eps_norm,
             weight_decay=weight_decay, lam_min=lam_min, lam_max=lam_max,
@@ -61,18 +57,17 @@ class MatrixOptimizer(Optimizer):
             state_dtype=state_dtype, ablation=ablation,
         )
         super().__init__(params, defaults)
-        # 每步聚合的诊断量 (供 pipeline 记录, README §7.3)
+        # Diagnostics from the latest optimizer step.
         self.last_diag = {}
 
-    # ---- SPD 状态更新: 唯一区分 B5/B3 的地方 ----
+    # Covariance update: the only difference in the paired comparison.
     @staticmethod
     def _update_cov(rule, prev, S, alpha, lam_min, lam_max):
-        """返回 (new_state, clip_triggered).
+        """Average one covariance state with a new statistic, then clip it.
 
-        rule='bures':      Bures barycenter, alpha = 1 - beta2
-        rule='euclidean':  欧氏 EMA, new = beta2*prev + (1-beta2)*S
-        rule='scale_only': 尺度-only 平均 (固定旧基, √λ 平均, 去旋转) [Stage2 消融]
-        三者更新后都做同样的 ClipSPD.
+        "bures" uses the BW average; "euclidean" uses an arithmetic moving
+        average. "scale_only", "ai", and "log_euclidean" are ablation rules.
+        Return the new state and whether clipping changed an eigenvalue.
         """
         if rule in ("ai", "log_euclidean"):
             from .core import spd_power
@@ -138,13 +133,13 @@ class MatrixOptimizer(Optimizer):
 
                 st = self.state[p]
 
-                # ---- 1D / 非2D 参数: AdamW 分支 ----
+                # Use AdamW for parameters that are not matrices.
                 if g.dim() != 2:
                     self._adamw_step(p, g, st, lr, beta1, beta2,
                                      adamw_eps, wd)
                     continue
 
-                # ---- 2D 参数: 矩阵预条件 ----
+                # Precondition matrix parameters.
                 m, n = g.shape
                 g32 = g.to(sdtype)
                 if len(st) == 0:
@@ -164,7 +159,7 @@ class MatrixOptimizer(Optimizer):
                 st["step"] += 1
                 t = st["step"]
 
-                # Step 1: 一阶动量 + bias correction
+                # Step 1: update and bias-correct the first moment.
                 M = st["M"]
                 M.mul_(beta1).add_(g, alpha=1.0 - beta1)
                 M_hat = (M / (1.0 - beta1 ** t)).to(sdtype)
@@ -173,7 +168,7 @@ class MatrixOptimizer(Optimizer):
                 D_raw = torch.zeros_like(M_hat)
                 refresh = (t % tau_root == 0) or (t == 1) or (tau_root == 1)
 
-                # 分块处理 (每个 (行块, 列块) 组合独立)
+                # Each rectangular tile has its own covariance states.
                 for (i0, i1) in st["blocks_m"]:
                     gi = g32[i0:i1, :]
                     for (j0, j1) in st["blocks_n"]:
@@ -182,13 +177,13 @@ class MatrixOptimizer(Optimizer):
                         bm, bn = i1 - i0, j1 - j0
                         Im = torch.eye(bm, dtype=sdtype, device=p.device)
                         In = torch.eye(bn, dtype=sdtype, device=p.device)
-                        # Step 2: 瞬时 SPD 统计
+                        # Step 2: form positive-definite gradient statistics.
                         S_L = symmetrize(gij @ gij.transpose(-1, -2)) / bn \
                             + eps_stat * Im
                         S_R = symmetrize(gij.transpose(-1, -2) @ gij) / bm \
                             + eps_stat * In
 
-                        # Step 3: 协方差状态更新 (B5/B3 唯一分歧)
+                        # Step 3: update the covariance states.
                         L_new, tL = self._update_cov(
                             rule, st["L"][key], S_L, alpha, lam_min, lam_max)
                         R_new, tR = self._update_cov(
@@ -219,7 +214,7 @@ class MatrixOptimizer(Optimizer):
                                 else: R_new=v
                         st["L"][key], st["R"][key] = L_new, R_new
 
-                        # root cache: 每 tau_root 步刷新逆平方根
+                        # Refresh inverse square roots every tau_root steps.
                         if refresh or (key not in st["Lih_cache"]):
                             st["Lih_cache"][key] = spd_inv_sqrt(L_new)
                         if refresh or (key not in st["Rih_cache"]):
@@ -227,11 +222,11 @@ class MatrixOptimizer(Optimizer):
                         Lih = st["Lih_cache"][key]
                         Rih = st["Rih_cache"][key]
 
-                        # Step 4: 预条件方向 (raw)
+                        # Step 4: precondition the first moment.
                         Mij = M_hat[i0:i1, j0:j1]
                         D_raw[i0:i1, j0:j1] = Lih @ Mij @ Rih
 
-                # Step 4b: Frobenius norm matching (全参数级别)
+                # Match the step size across the full parameter matrix.
                 num = M_hat.norm()
                 den = D_raw.norm() + eps_norm
                 scale = torch.clamp(num / den, min=s_min, max=s_max)
@@ -242,12 +237,12 @@ class MatrixOptimizer(Optimizer):
                 diag_accum["scale_sum"] += float(scale.item())
                 diag_accum["scale_count"] += 1
 
-                # Step 5: 参数更新 (decoupled weight decay)
+                # Step 5: apply weight decay and the parameter update.
                 if wd != 0.0:
                     p.mul_(1.0 - lr * wd)
                 p.add_(D, alpha=-lr)
 
-        # 汇总诊断
+        # Combine tile diagnostics into parameter-level values.
         for k in ("raw_grad_norm", "first_moment_norm", "precond_update_norm"):
             diag_accum[k] = math.sqrt(diag_accum[k])
         if diag_accum["scale_count"] > 0:
@@ -258,7 +253,7 @@ class MatrixOptimizer(Optimizer):
         self.last_diag = diag_accum
         return loss
 
-    # ---- 内置 AdamW (1D / 非矩阵参数) ----
+    # AdamW update for non-matrix parameters.
     @staticmethod
     def _adamw_step(p, g, st, lr, beta1, beta2, eps, wd):
         if len(st) == 0:
@@ -279,7 +274,7 @@ class MatrixOptimizer(Optimizer):
 
 
 class AdamWRef(Optimizer):
-    """标准 AdamW 对照基线 (B2), 用于 anchor_2 复现合理曲线."""
+    """AdamW baseline implemented with the same non-matrix update path."""
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
                  weight_decay=0.0):
@@ -301,11 +296,10 @@ class AdamWRef(Optimizer):
 
 
 class ShampooRef(Optimizer):
-    """Shampoo 对照基线 (B4, README §9).
+    """Shampoo baseline with cumulative left and right gradient statistics.
 
-    标准 Shampoo: 维护 L,R 累积 Gram 统计, 预条件 = L^{-1/4} G R^{-1/4}.
-    与 B3/B5 不同 (那两者是 EMA / Bures 的 -1/2 幂), Shampoo 用 -1/4 幂 +
-    累积统计, 作为独立对照. 一维参数走 AdamW.
+    Matrix gradients are scaled by L**(-1/4) and R**(-1/4). Non-matrix
+    parameters use AdamW.
     """
 
     def __init__(self, params, lr=1e-3, momentum=0.9, eps=1e-6,
@@ -370,7 +364,7 @@ def _mat_power(A, p):
 
 
 class SGDMRef(Optimizer):
-    """SGD-with-momentum 对照基线 (B1)."""
+    """SGD with momentum, used as a baseline."""
 
     def __init__(self, params, lr=1e-2, momentum=0.9, weight_decay=0.0):
         defaults = dict(lr=lr, momentum=momentum, weight_decay=weight_decay)

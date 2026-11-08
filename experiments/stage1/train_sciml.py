@@ -263,7 +263,7 @@ def run_baseline(label, opt_name, args, device, ref_inputs, ref_values):
             model, args.batch_size, generator, device
         )
         total_loss.backward()
-        # gradient clipping (标准训练卫生; 对所有优化器同阈值施加, 保 B3/B5 配对)
+        # Apply the same gradient limit to every optimizer for a fair comparison.
         if getattr(args, "grad_clip", 0.0) and args.grad_clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
@@ -329,7 +329,7 @@ def main():
     parser.add_argument("--gpu", type=int, default=None)
     parser.add_argument("--log-interval", type=int, default=100)
     parser.add_argument("--grad-clip", type=float, default=0.0,
-                        help="max grad norm (0=off); 同阈值施加于所有优化器")
+                        help="maximum gradient norm (0 disables clipping); same limit for all optimizers")
     parser.add_argument(
         "--output",
         default=str(ROOT / "stage1" / "results_sciml.json"),

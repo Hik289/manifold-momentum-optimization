@@ -1,14 +1,9 @@
-"""
-eigh 鲁棒性复现测试 (Stage1 崩溃 DEBUG).
+"""Check eigendecomposition fallbacks on difficult symmetric matrices.
 
-背景: stage1.log 中 torch.linalg.eigh 在 GPU (cuSOLVER syevd) 上对病态/重根
-矩阵报 error-65 "failed to converge", 崩在 clip_spd / spd_power / Shampoo _mat_power。
-CPU LAPACK 在同样矩阵上通常能成功。_robust_eigh 加了 GPU->CPU->jitter->SVD 回退。
-
-本测试构造多类"eigh 杀手"矩阵, 在 GPU (若可用) 与 CPU 上验证:
-  (a) _robust_eigh / spd_power / clip_spd / bw_distance 都不再抛异常
-  (b) 结果满足基本 SPD 数学性质 (谱幂重构、TAT=B 等)
-  (c) 报告触发了哪级回退 (EIGH_FALLBACK_STATS)
+Some GPU eigensolvers fail on matrices with repeated or widely spaced
+eigenvalues. The core implementation retries on CPU, adds a small diagonal
+offset if needed, and finally uses SVD. This script checks that the matrix
+operations remain finite and records which fallbacks were used.
 """
 
 import sys
@@ -27,27 +22,27 @@ torch.manual_seed(42)
 
 
 def killers(d, device, dtype):
-    """生成一批容易让 cuSOLVER eigh 不收敛的矩阵 (全部对称)."""
+    """Build symmetric matrices that can challenge an eigensolver."""
     mats = {}
     I = torch.eye(d, device=device, dtype=dtype)
-    # 1) 完全重根 (identity 缩放)
+    # All eigenvalues equal.
     mats["repeated_identity"] = 3.7 * I
-    # 2) 大量重复特征值 + 极小扰动
+    # Almost repeated eigenvalues.
     ev = torch.ones(d, device=device, dtype=dtype)
     ev[-1] = 1.0 + 1e-12
     Q, _ = torch.linalg.qr(torch.randn(d, d, device=device, dtype=dtype))
     mats["near_repeated"] = symmetrize(Q @ torch.diag(ev) @ Q.t())
-    # 3) 极端病态 (cond ~ 1e14)
+    # Eigenvalues span roughly 14 orders of magnitude.
     ev2 = torch.logspace(-7, 7, d, device=device, dtype=dtype)
     mats["ill_conditioned"] = symmetrize(Q @ torch.diag(ev2) @ Q.t())
-    # 4) 秩亏 (含精确 0 特征值) + stat floor
+    # Rank-deficient matrix with a small diagonal offset.
     ev3 = torch.zeros(d, device=device, dtype=dtype)
     ev3[: d // 2] = torch.linspace(0.1, 5.0, d // 2, device=device, dtype=dtype)
     mats["rank_deficient"] = symmetrize(Q @ torch.diag(ev3) @ Q.t()) \
         + 1e-6 * I
-    # 5) 由爆炸梯度外积构造 (模拟 Burgers-PINN spike): G 大动态范围
+    # Gram matrix from a gradient with one unusually large column.
     G = torch.randn(d, d, device=device, dtype=dtype)
-    G[:, 0] *= 1e6  # 一列爆炸
+    G[:, 0] *= 1e6
     mats["exploded_gram"] = symmetrize(G @ G.t()) / d + 1e-6 * I
     return mats
 
@@ -76,7 +71,7 @@ def check_on(device):
             except Exception as e:
                 entry["clip_err"] = str(e)
             try:
-                # SPD 化后测 sqrt/inv-sqrt/ot/bw
+                # Make the inputs SPD before checking roots, transport, and BW distance.
                 Aspd, _ = clip_spd(A, 1e-6, 1e6)
                 Bspd, _ = clip_spd(symmetrize(A + 0.3 * torch.eye(
                     d, device=device, dtype=dtype)), 1e-6, 1e6)

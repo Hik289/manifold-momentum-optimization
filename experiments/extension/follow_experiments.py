@@ -17,30 +17,30 @@ while time.monotonic()-start<7*24*3600:
    except json.JSONDecodeError:pass
   groups={k:[] for k in ['complete','failed','running','not_started']}
   for job in jobs:groups[records.get(job['id'],{}).get('status','not_started')].append(job['id'])
-  lines=['实验状态（自动从真实记录更新）',f'已声明实验：{len(jobs)}',f'完成完整请求预算：{len(groups["complete"])}',f'数值失败：{len(groups["failed"])}',f'运行中：{len(groups["running"])}',f'尚未启动：{len(groups["not_started"])}','',
-   '注意：screen 的完整请求预算仍然只是筛选预算。这里的全部已声明实验，不等于 proposal 所有大模型/数据集已完成。',
-   '当前版本：已打开的 paper/main.tex 编辑器及其内置预览',
-   '本次跟随仅同步结果与论文表格；不另编译或导出 PDF。',
-   '全部 proposal 缺项：analysis/PROPOSAL_COVERAGE.json','']
+  lines=['Experiment status (from recorded results)',f'Declared runs: {len(jobs)}',f'Completed at the requested budget: {len(groups["complete"])}',f'Failed: {len(groups["failed"])}',f'Running: {len(groups["running"])}',f'Not started: {len(groups["not_started"])}','',
+   'A completed screening run covers only its screening budget. These runs do not cover every large model or dataset in the proposal.',
+   'Manuscript source: paper/main.tex in the open editor',
+   'This follower syncs results and tables. It does not build or export a PDF.',
+   'Proposal coverage: analysis/PROPOSAL_COVERAGE.json','']
   recovery_plan=ROOT/'analysis/FAILURE_RECOVERY_PLAN.json'
   if recovery_plan.exists():
    rp=json.loads(recovery_plan.read_text());covered=sum(len(c['parents']) for c in rp['cases'] if all(records.get(k,{}).get('status')=='complete' for k in c['repaired_run_ids']));recovery_ids=[k for c in rp['cases'] for k in c['repaired_run_ids']];completed_recovery=sum(records.get(k,{}).get('status')=='complete' for k in recovery_ids)
-   lines.extend([f'失败修复对照：{completed_recovery}/{len(recovery_ids)} 项完成；覆盖原失败记录 {covered}/{rp["original_failure_count"]} 条。原失败历史保留。',''])
+   lines.extend([f'Failure-recovery controls: {completed_recovery}/{len(recovery_ids)} complete; covering {covered}/{rp["original_failure_count"]} original failures. Original failure records remain available.',''])
   new_jobs=[j for j in jobs if j.get('cohort')=='prospective_new_tasks']
   if new_jobs:
-   lines.append('新任务（6任务、3任务族、198次固定实验）:')
+   lines.append('New-task study (6 tasks, 3 families, 198 fixed runs):')
    for phase,total in [('tune',108),('full',90)]:
     completed=sum(j.get('phase')==phase and records.get(j['id'],{}).get('status')=='complete' for j in new_jobs)
     running=sum(j.get('phase')==phase and records.get(j['id'],{}).get('status')=='running' for j in new_jobs)
     failed=sum(j.get('phase')==phase and records.get(j['id'],{}).get('status')=='failed' for j in new_jobs)
-    lines.append(f'  {phase}: 完成 {completed}/{total}，运行 {running}，失败 {failed}')
-   lines.extend(['  所有任务和种子保留；完整研究结束后按冻结规则判定优势任务族。',''])
-  for key,title in [('running','运行中'),('failed','失败'),('not_started','待启动')]:
+    lines.append(f'  {phase}: {completed}/{total} complete, {running} running, {failed} failed')
+   lines.extend(['  All declared tasks and seeds remain in the record. Assess family-level support only after the study ends.',''])
+  for key,title in [('running','Running'),('failed','Failed'),('not_started','Not started')]:
    lines.append(title+':')
    for name in groups[key]:
     r=records.get(name,{});history=r.get('history',[])
-    progress=f'，最后进度 {history[-1]["epoch"] if history else 0}/{r.get("epochs","?")} {r.get("budget_unit","epochs")}，{len(history)} 条训练记录'
-    lines.append('  '+name+(progress if key=='running' else ('，'+r.get('error','') if key=='failed' else '')))
+    progress=f', progress {history[-1]["epoch"] if history else 0}/{r.get("epochs","?")} {r.get("budget_unit","epochs")}, {len(history)} records'
+    lines.append('  '+name+(progress if key=='running' else (', '+r.get('error','') if key=='failed' else '')))
    lines.append('')
   (ROOT/'analysis/MANUSCRIPT_STATUS.txt').write_text('\n'.join(lines))
   signature=hashlib.sha256(json.dumps(records,sort_keys=True).encode()).hexdigest()
@@ -56,9 +56,9 @@ while time.monotonic()-start<7*24*3600:
    state=json.loads(state_path.read_text())
    if state.get('status')=='unreachable':
     status_path=ROOT/'analysis/MANUSCRIPT_STATUS.txt';cached=status_path.read_text() if status_path.exists() else ''
-    if cached.startswith('服务器连接失败'):
+    if cached.startswith('Remote connection failed'):
      cached='\n'.join(cached.splitlines()[3:])
-    prefix='服务器连接失败：以下为最近成功同步的缓存，不代表实时运行状态。\n上次成功同步：'+state.get('last_successful_sync','unknown')+'\n\n'
+    prefix='Remote connection failed. The following is the last synced status, not a live result.\nLast successful sync: '+state.get('last_successful_sync','unknown')+'\n\n'
     status_path.write_text(prefix+cached)
 
  time.sleep(60)

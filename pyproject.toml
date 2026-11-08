@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "buresmomentum"
 version = "0.1.0"
-description = "Bures--Wasserstein covariance averaging for matrix preconditioning"
+description = "A matrix optimizer with Bures-Wasserstein covariance updates"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["torch>=2.1", "numpy>=1.24"]

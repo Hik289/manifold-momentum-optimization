@@ -1,11 +1,10 @@
-"""
-23 项诊断量轨迹记录管线 (README §7.3, hypothesis_tree H0.H1/H2/H3).
+"""Record training metrics and optimizer diagnostics at evaluation points.
 
-DiagnosticRecorder 每个 eval point 从 optimizer 状态提取全部 23 项:
-  1  train_loss                 (外部传入)
-  2  val_metric                 (外部传入)
-  3  final_test_metric          (run 结束传入)
-  4  learning_rate              (外部传入)
+DiagnosticRecorder collects these values when they are available:
+  1  train_loss                 (passed to record)
+  2  val_metric                 (passed to record)
+  3  final_test_metric          (passed at the end of a run)
+  4  learning_rate              (passed to record)
   5  raw_grad_norm              (optimizer.last_diag)
   6  first_moment_norm          (optimizer.last_diag)
   7  precond_update_norm        (optimizer.last_diag)
@@ -23,11 +22,11 @@ DiagnosticRecorder 每个 eval point 从 optimizer 状态提取全部 23 项:
   19 clipping_activation_rate
   20 wall_clock
   21 peak_memory
-  22 checkpoint_metadata        (外部传入)
-  23 nan_inf / eig_fail / state_reset 日志
+  22 checkpoint_metadata        (passed to record)
+  23 nan_inf / eig_fail / state_reset events
 
-统一优化器接口: build_optimizer(name, params, **hp) 返回 B1..B5 之一,
-供 Stage 1 多 task 统一调用.
+build_optimizer(name, params, **hp) provides one entry point for the five
+baseline and BuresMomentum optimizers.
 """
 
 import time
@@ -41,7 +40,7 @@ from bures.optimizer import (
 
 
 # ---------------------------------------------------------------------------
-# 统一优化器接口 (Stage 1 多 task 共用)
+# Shared optimizer interface
 # ---------------------------------------------------------------------------
 
 OPTIMIZER_REGISTRY = {
@@ -51,9 +50,9 @@ OPTIMIZER_REGISTRY = {
 
 
 def build_optimizer(name, params, lr=1e-3, weight_decay=0.0, **kw):
-    """统一构造 B1..B5. 名称见 OPTIMIZER_REGISTRY.
+    """Build an optimizer by its registry name.
 
-    B3/B5 共享全部超参, 仅 covariance_rule 不同 (anchor_2 要求).
+    The Euclidean and Bures variants share settings except covariance_rule.
     """
     name = name.lower()
     if name == "sgdm":
@@ -70,7 +69,7 @@ def build_optimizer(name, params, lr=1e-3, weight_decay=0.0, **kw):
     if name in ("euclidean_kron", "buresmomentum", "scale_only"):
         rule = {"euclidean_kron": "euclidean", "buresmomentum": "bures",
                 "scale_only": "scale_only"}[name]
-        # B3/B5/scale_only 共享超参路径, 唯一差别 covariance_rule
+        # These variants share settings except for the averaging rule.
         return MatrixOptimizer(
             params, lr=lr, betas=kw.get("betas", (0.9, 0.99)),
             eps_stat=kw.get("eps_stat", 1e-6),
@@ -85,11 +84,11 @@ def build_optimizer(name, params, lr=1e-3, weight_decay=0.0, **kw):
 
 
 # ---------------------------------------------------------------------------
-# 诊断记录器
+# Diagnostic recorder
 # ---------------------------------------------------------------------------
 
 class DiagnosticRecorder:
-    """收集 23 项诊断量的轨迹. 每个 eval point 调用 record()."""
+    """Store a diagnostic record at each evaluation point."""
 
     def __init__(self, optimizer, track_spd=True):
         self.opt = optimizer
@@ -98,7 +97,7 @@ class DiagnosticRecorder:
         self.prev_states = {}  # param_id -> {"L":{blk:mat}, "R":{blk:mat}}
         self.t0 = time.time()
         self.event_log = []  # nan/inf/eig_fail/state_reset
-        # 从优化器读 clip 边界, 用于 κ 诊断的一致 floor (修 κ~1e36 伪值)
+        # Use the optimizer's clipping bounds in condition-number diagnostics.
         self._state_lam_min = 1e-6
         self._state_lam_max = 1e6
         try:
@@ -109,10 +108,9 @@ class DiagnosticRecorder:
             pass
 
     def _spd_diag(self):
-        """从 MatrixOptimizer 状态提取 SPD 诊断 (§7.3 items 9-17).
+        """Summarize SPD states across all parameters and matrix blocks.
 
-        对多 param / 多 block, 取跨全部 SPD 块的聚合 (mean/max).
-        返回聚合 dict.
+        Return mean values and, where useful, maxima.
         """
         agg = {
             "lambda_min_L": [], "lambda_max_L": [],
@@ -149,10 +147,10 @@ class DiagnosticRecorder:
                                 {"t": self.opt_step(), "event": "eig_fail",
                                  "detail": str(e)})
                             continue
-                        # 状态已被 clip_spd 裁到 [lam_min, lam_max];
-                        # 诊断 κ 必须用同一 floor, 否则重分解产生的
-                        # 伪近零/负特征值 clamp(1e-30) 会伪造 κ~1e36
-                        # (真实上限 = lam_max/lam_min = 1e12)。
+                        # Match the state's clipping bounds. A fresh
+                        # eigendecomposition can otherwise create tiny
+                        # round-off eigenvalues and inflate the condition
+                        # number far beyond lam_max / lam_min.
                         ev = ev.clamp(min=self._state_lam_min,
                                       max=self._state_lam_max)
                         lmin, lmax = ev.min().item(), ev.max().item()
@@ -207,7 +205,7 @@ class DiagnosticRecorder:
         }
         if self.track_spd:
             entry.update(self._spd_diag())
-        # clipping activation rate (§7.3 item 19)
+        # Store the clipping event count under the existing diagnostic key.
         entry["clip_activation_rate"] = (
             d.get("clip_events", 0))
         self.trajectory.append(entry)

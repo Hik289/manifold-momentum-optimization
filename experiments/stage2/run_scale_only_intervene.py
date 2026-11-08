@@ -1,22 +1,11 @@
 #!/usr/bin/env python
-"""
-Stage2-P0 决定性机制实验: 尺度-only INTERVENE (debug_move=INTERVENE)
+"""Compare full BW, scale-only BW, and Euclidean averaging on Cora.
 
-科学问题: Bures 的早期收敛加速, 来自 **尺度平均** (√λ vs λ, §4.3) 还是
-          **Bures 对特征方向/旋转的完整处理** (非对易)?
-
-三臂对照 (Cora, 严格配对, seed=42, 同初始化, 唯一变量=covariance_rule):
-  1. bures       : 完整 Bures barycenter (B5)
-  2. scale_only  : 固定旧状态特征基, 只按 √λ 平均 (去掉旋转/非对易), §4.3 尺度效应
-  3. euclidean   : 欧氏 EMA (B3/A1)
-
-判据 (聚焦早期, 优势在前 ~400ep):
-  - scale_only 复现完整 Bures 大部分早期加速 → 机制 = 尺度平均 (√λ-vs-λ)
-  - scale_only 复现不了, 要完整 Bures 才加速 → 机制 = Bures 旋转/非对易处理
-  - 用 INTERVENE 直接定因果, 绕开噪声 TRACE
-
-关键早期指标: epoch-to-target (test_acc 首达阈值), AUC(前Nep val), best@早期。
-输出 stage2/results_scale_only_intervene.json。
+The three runs use the same seed, model, data, and optimizer settings except
+for covariance_rule. The scale-only rule keeps the old eigenvectors and
+averages their scales. The script records validation-selected accuracy,
+early accuracy targets, and average early validation accuracy. Its threshold
+labels summarize this single-seed comparison; they are not statistical tests.
 """
 import argparse
 import json
@@ -84,7 +73,7 @@ def evaluate(model, data):
 
 
 def run_arm(arm, opt_name, dataset, data, args, device):
-    set_seed(args.seed)  # 同 seed 同初始化 -> 唯一变量 = covariance_rule
+    set_seed(args.seed)  # Pair initialization across averaging rules.
     model = SmallGCN(dataset.num_features, 64, dataset.num_classes).to(device)
     opt = mk_opt(opt_name, model.parameters())
     rec = DiagnosticRecorder(opt, track_spd=True)
@@ -161,25 +150,25 @@ def main():
         }
         rules[arm] = rule
 
-    # 机制判定: scale_only 复现了多少 Bures 相对 euclidean 的早期加速?
+    # Compare how much of the BW-versus-Euclidean gap scale-only recovers.
     bt = arms["bures"]["best_test_at_best_val"]
     st = arms["scale_only"]["best_test_at_best_val"]
     et = arms["euclidean"]["best_test_at_best_val"]
-    bures_gain = bt - et            # 完整 Bures 相对欧氏的优势
-    scale_gain = st - et            # 尺度-only 相对欧氏的优势
+    bures_gain = bt - et            # Full BW minus Euclidean.
+    scale_gain = st - et            # Scale-only minus Euclidean.
     frac = (scale_gain / bures_gain) if abs(bures_gain) > 1e-6 else None
 
-    # 早期加速: 用 epoch-to-target(0.78) 比较
+    # Record the first epoch that reaches 0.78 accuracy.
     def e2t(a):
         return arms[a]["early_epoch_to_target"].get("0.78")
     verdict = "INCONCLUSIVE"
     if frac is not None:
         if frac >= 0.6:
-            verdict = "SCALE_MECHANISM (尺度平均复现大部分Bures加速)"
+            verdict = "SCALE_MECHANISM (scale-only recovers most of the gap)"
         elif frac <= 0.3:
-            verdict = "ROTATION_MECHANISM (需完整Bures, 尺度不够)"
+            verdict = "ROTATION_MECHANISM (scale-only recovers little of the gap)"
         else:
-            verdict = "MIXED (尺度部分解释, 旋转也贡献)"
+            verdict = "MIXED (scale-only recovers part of the gap)"
 
     summary = {
         "task": args.task, "seed": args.seed, "epochs": args.epochs,

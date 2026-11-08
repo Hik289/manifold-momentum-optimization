@@ -1,4 +1,4 @@
-"""提取 Burgers/Poisson B3/B5 的 SPD cond 峰值 κ* + 发散点对齐诊断."""
+"""Report peak SPD condition numbers and divergence for SciML runs."""
 import json
 import math
 import sys
@@ -36,7 +36,7 @@ def analyze(task, bl):
         print(f"  lambda_min_L range=[{min(lminL):.2e},{max(lminL):.2e}]")
     if lminR:
         print(f"  lambda_min_R range=[{min(lminR):.2e},{max(lminR):.2e}]")
-    # 发散追踪
+    # Find the first recorded divergence.
     diverged = False
     for x in diag:
         tl = x.get("train_loss")
@@ -51,7 +51,7 @@ def analyze(task, bl):
             break
     if not diverged:
         print("  >> no divergence (train_loss finite throughout)")
-    # 末尾3点快照
+    # Show the last three diagnostic records.
     for x in diag[-3:]:
         print(f"    step={x['step']} loss={x.get('train_loss')} "
               f"kL={x.get('kappa_L_max')} kR={x.get('kappa_R_max')} "

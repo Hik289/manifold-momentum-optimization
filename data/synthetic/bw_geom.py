@@ -179,7 +179,7 @@ def sin_theta_fro(U, Uref):
 
 
 # --------------------------------------------------------------------------
-# nearest Kronecker product (ground truth for §10.6 misspecification)
+# Nearest Kronecker product for a covariance with imperfect factorization.
 # --------------------------------------------------------------------------
 def nearest_kron(Sigma, m, n):
     """Van Loan-Pitsianis: best Frobenius rank-1 Kronecker approx

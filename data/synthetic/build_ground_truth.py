@@ -214,7 +214,7 @@ def _save(args, s, seed, tag=None):
 
 
 def _scale_closedform_residual(sc, b2):
-    """Validate §4.3 closed form on commuting scale path (noiseless):
+    """Check the closed-form update for a noiseless path with shared eigenvectors:
     lambda_i,t^BW = [b2 sqrt(lam_{i,t-1}^BW) + (1-b2) sqrt(s_{i,t})]^2 in shared basis Q."""
     Q = sc["Q"]; S = sc["S"]; T = sc["T"]
     # project S into Q basis -> diagonal entries are eigenvalues s_i,t

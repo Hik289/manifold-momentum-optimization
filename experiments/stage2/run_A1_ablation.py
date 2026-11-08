@@ -1,23 +1,10 @@
 #!/usr/bin/env python
-"""
-Stage2-P0 任务1: A1 消融 — 坐实 G4 (debug_move=INTERVENE)
+"""Compare BW and Euclidean covariance averaging on Cora.
 
-科学问题: Cora 上 B5>B3 的 +13pp 优势, 是否真来自 Bures 几何本身?
-干预: 在完全相同的 M/β1/β2/ε/matrix-root实现/更新频率/block/clip/norm-match 下,
-      **只把协方差平均规则从 Bures barycenter (B5) 换成欧氏 EMA (=A1)**。
-      A1 就是 B3, 但作为受控消融跑, 显式确认唯一变量 = covariance_rule。
-
-期望:
-  A1(欧氏) 使 +13pp 消失 (A1 test_acc ≈ B3 << B5) → 优势归因几何本身, G4 CONFIRMED。
-  若 A1 test_acc 仍 ≈ B5 → 优势另有来源。
-
-设计: 同 seed=42 同数据同初始化, 只跑三个受控臂:
-  - B5_bures:      MatrixOptimizer(covariance_rule="bures")
-  - A1_euclidean:  MatrixOptimizer(covariance_rule="euclidean")  [= B3]
-  - (可选) 打印二者超参 diff 确认唯一变量
-
-复用 train_graph 的 SmallGCN + 数据管线, 但用独立 driver 保证配对干净 + 记录
-"唯一变量"审计。输出 stage2/results_A1_ablation.json。
+Both runs use the same model, data, seed, optimizer settings, and training
+budget. The only intended change is covariance_rule. The output records the
+validation-selected test results and checks that the settings match. This
+single-seed ablation is descriptive; it does not establish a task-wide effect.
 """
 import argparse
 import json
@@ -84,7 +71,7 @@ def evaluate(model, data):
 
 
 def run_arm(arm, rule, dataset, data, args, device):
-    set_seed(args.seed)  # 同 seed 同初始化 => 唯一变量 = covariance_rule
+    set_seed(args.seed)  # Pair initialization across averaging rules.
     model = SmallGCN(dataset.num_features, 64, dataset.num_classes).to(device)
     opt = mk_opt(rule, model.parameters())
     rec = DiagnosticRecorder(opt, track_spd=True)
@@ -142,7 +129,7 @@ def main():
     for arm, rule in [("B5_bures", "bures"), ("A1_euclidean", "euclidean")]:
         arms[arm] = run_arm(arm, rule, dataset, data, args, device)
 
-    # 唯一变量审计: 两臂超参 diff (应只有 covariance_rule)
+    # Verify that the optimizer settings differ only in covariance_rule.
     h5 = arms["B5_bures"]["opt_hparams"]
     h1 = arms["A1_euclidean"]["opt_hparams"]
     diff = {k: (h5[k], h1[k]) for k in h5 if h5[k] != h1[k]}
@@ -161,9 +148,9 @@ def main():
             "only_covariance_rule": (set(diff.keys()) == {"covariance_rule"}),
         },
         "G4_verdict": (
-            "CONFIRMED (优势来自几何)" if gap > 0.03 and
+            "CONFIRMED (BW exceeds Euclidean by over 3 points)" if gap > 0.03 and
             set(diff.keys()) == {"covariance_rule"}
-            else "NOT_CONFIRMED (优势未消失或变量不唯一)"),
+            else "NOT_CONFIRMED (threshold or pairing check failed)"),
         "arms": arms,
     }
     with open(args.output, "w") as f:

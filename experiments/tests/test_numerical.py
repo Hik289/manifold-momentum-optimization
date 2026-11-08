@@ -1,26 +1,10 @@
-"""
-anchor_1: BuresMomentum 15 项数值测试 (README §15 / hypothesis_tree H0.anchor_1)
+"""Fifteen numerical checks for BW geometry and the matrix optimizer.
 
-15 项 (与 hypothesis_tree invariant 列表逐项对应):
-  T01 对称性              §15.1
-  T02 正定性              §15.2
-  T03 BW距离非负+对称     §15.3/15.4/15.5
-  T04 barycenter端点      §15.6
-  T05 静止点              §15.7
-  T06 交换闭式            §15.8
-  T07 正交等变性          §15.9
-  T08 OT映射 TAT=B        §15.10
-  T09 测地等速            §15.11
-  T10 两点最优性          §15.12
-  T11 Kronecker方向一致   §15.13
-  T12 Identity退化        §15.14
-  T13 标量退化            §15.15
-  T14 cache一致           §15.17
-  T15 混合精度            §15.18
-
-数值精度: 几何原语默认用 FP64 验证 (阈值 1e-5~1e-6);
-T15 专门验证 FP32 路径满足 §15.18 (SPD 状态 >= FP32).
-seed = 42.
+The checks cover symmetry, positive definiteness, BW distance, endpoints,
+stationary inputs, commuting matrices, orthogonal changes of basis, transport,
+geodesics, two-point optimality, two-sided preconditioning, identity and scalar
+cases, repeatability with root refresh, and mixed precision. Most checks use
+float64; the mixed-precision check uses float32 states. Seed: 42.
 """
 
 import json
@@ -42,7 +26,7 @@ torch.manual_seed(42)
 
 
 def rand_spd(d, dtype=DTYPE, cond_scale=1.0, device="cpu"):
-    """生成随机 SPD 矩阵 (可控条件数尺度)."""
+    """Generate a random positive-definite matrix."""
     A = torch.randn(d, d, dtype=dtype, device=device)
     S = symmetrize(A @ A.transpose(-1, -2)) / d
     S = S + (0.1 + cond_scale) * torch.eye(d, dtype=dtype, device=device)
@@ -60,11 +44,11 @@ def relerr(x, y):
 
 
 # ---------------------------------------------------------------------------
-# 各项测试; 每个返回 (passed: bool, detail: dict)
+# Each check returns a pass flag and a detail dictionary.
 # ---------------------------------------------------------------------------
 
 def T01_symmetry():
-    """SPD 状态 & barycenter 输出对称: ||X - X^T||_F < 1e-6 ||X||_F."""
+    """Check that BW averages remain symmetric."""
     worst = 0.0
     for d in (4, 16, 64):
         A = rand_spd(d)
@@ -77,7 +61,7 @@ def T01_symmetry():
 
 
 def T02_positive_definite():
-    """barycenter / 更新后状态正定: lambda_min > 0."""
+    """Check that BW averages remain positive definite."""
     worst_min = float("inf")
     for d in (4, 16, 64):
         A = rand_spd(d)
@@ -98,7 +82,7 @@ def T03_bw_distance_nonneg_symmetric():
         A = rand_spd(d)
         B = rand_spd(d)
         d2ab, _ = bw_distance_sq(A, B, clamp_neg=False)
-        max_neg = min(max_neg, d2ab.item())  # 记录最负值
+        max_neg = min(max_neg, d2ab.item())  # Keep the lowest observed value.
         dab = bw_distance(A, B).item()
         dba = bw_distance(B, A).item()
         max_asym = max(max_asym, abs(dab - dba))
@@ -132,7 +116,7 @@ def T05_stationary():
 
 
 def T06_commuting_closed_form():
-    """AB=BA (共同基) 时: B_alpha(A,B) = [(1-a)A^1/2 + a B^1/2]^2."""
+    """Check the closed form when A and B share eigenvectors."""
     worst = 0.0
     for d in (4, 16, 64):
         Q = rand_orthogonal(d)
@@ -197,8 +181,10 @@ def T09_geodesic_const_speed():
 
 
 def T10_two_point_optimality():
-    """C* = B_alpha(A,B) 是 F(C)=β d²(C,A)+(1-β)d²(C,B) 的最小点.
-    对随机扰动 C, F(C*) <= F(retract) + 1e-8.  (β=1-alpha, s=alpha)
+    """Check that the BW average beats sampled nearby alternatives.
+
+    Compare the two-point objective at the average with random SPD
+    perturbations. This is a numerical check, not a global proof.
     """
     def F(C, A, B, beta):
         d2a, _ = bw_distance_sq(C, A)
@@ -217,19 +203,19 @@ def T10_two_point_optimality():
                 E = torch.randn(d, d, dtype=DTYPE)
                 E = symmetrize(E) * 0.05
                 Cpert = symmetrize(Cstar + E)
-                # 投影回 SPD
+                # Project the perturbed matrix back to the SPD cone.
                 ev, evec = torch.linalg.eigh(Cpert)
                 ev = ev.clamp(min=1e-6)
                 Cpert = symmetrize((evec * ev.unsqueeze(-2))
                                    @ evec.transpose(-1, -2))
-                gap = Fstar - F(Cpert, A, B, beta)  # 应 <= 1e-8
+                gap = Fstar - F(Cpert, A, B, beta)
                 worst_gap = max(worst_gap, gap)
     return worst_gap <= 1e-6, {"max_gap": worst_gap, "threshold": 1e-6}
 
 
 def T11_kronecker_direction():
     """vec(L^-1/2 M R^-1/2) = (R^-1/2 ⊗ L^-1/2) vec(M).
-    torch.kron + column-major vec 约定验证.
+    Use column-major vectorization in the numerical comparison.
     """
     worst = 0.0
     for (m, n) in ((4, 6), (8, 8), (16, 12)):
@@ -239,8 +225,8 @@ def T11_kronecker_direction():
         Lih = spd_inv_sqrt(L)
         Rih = spd_inv_sqrt(R)
         direct = Lih @ M @ Rih
-        # vec 按列堆叠: vec(AXB) = (B^T ⊗ A) vec(X)
-        # 这里 D = Lih M Rih => vec(D) = (Rih^T ⊗ Lih) vec(M), Rih 对称
+        # For column-major vec, vec(AXB) = (B^T ⊗ A) vec(X).
+        # Rih is symmetric, so vec(D) = (Rih ⊗ Lih) vec(M).
         vecM = M.transpose(-1, -2).reshape(-1)  # column-major
         kron = torch.kron(Rih, Lih)
         vecD = kron @ vecM
@@ -250,9 +236,10 @@ def T11_kronecker_direction():
 
 
 def T12_identity_degeneration():
-    """L=I,R=I 时 D_raw = M_hat (通过 optimizer 单步验证).
-    构造 optimizer, 手动置 L=R=I, 检查预条件方向 = M_hat.
-    这里直接验证核心恒等: I^-1/2 M I^-1/2 = M.
+    """Check that identity inverse roots leave a matrix unchanged.
+
+    The identity is checked directly. A separate optimizer step checks that
+    the full path runs; that step updates its covariance states.
     """
     worst = 0.0
     for (m, n) in ((4, 6), (16, 16), (32, 8)):
@@ -261,22 +248,22 @@ def T12_identity_degeneration():
         M = torch.randn(m, n, dtype=DTYPE)
         D = spd_inv_sqrt(Im) @ M @ spd_inv_sqrt(In)
         worst = max(worst, relerr(D, M))
-    # 额外: 通过真实 optimizer 端到端验证一步 (L,R 初始 = I)
+    # Run one complete optimizer step as an additional smoke check.
     torch.manual_seed(42)
     w = torch.nn.Parameter(torch.randn(8, 10, dtype=DTYPE))
     opt = MatrixOptimizer([w], lr=0.0, betas=(0.9, 0.99), tau_root=1,
-                          state_dtype=DTYPE)  # lr=0 不动参数
+                          state_dtype=DTYPE)  # lr=0 leaves the parameter fixed.
     g = torch.randn(8, 10, dtype=DTYPE)
     w.grad = g
     opt.step()
-    # step1: M_hat = g (bias corrected). L,R 已更新为非I -> 该端到端只作 sanity
+    # The updated covariance states are not identity after this step.
     return worst < 1e-6, {"max_identity_relerr": worst, "threshold": 1e-6,
                           "note": "core identity I^-1/2 M I^-1/2 = M"}
 
 
 def T13_scalar_degeneration():
     """1D: c_t = [beta2 sqrt(c_{t-1}) + (1-beta2) sqrt(s_t)]^2.
-    验证 1x1 barycenter 与标量递推一致.
+    Compare a 1x1 BW average with the scalar recurrence.
     """
     beta2 = 0.99
     alpha = 1 - beta2
@@ -295,8 +282,10 @@ def T13_scalar_degeneration():
 
 
 def T14_cache_consistency():
-    """tau_root=1 时缓存方向 == 直接计算方向 (README §15.17).
-    对比 tau_root=1 optimizer 与手算逐步 inverse-sqrt.
+    """Check repeatability when inverse roots refresh at every step.
+
+    Two identical optimizer instances receive the same gradients and should
+    produce the same parameters.
     """
     torch.manual_seed(42)
     m, n = 8, 10
@@ -315,13 +304,14 @@ def T14_cache_consistency():
         opt_cache.step()
         opt_direct.step()
         worst = max(worst, (w1 - w2).norm().item())
-    # tau_root=1 下二者路径应逐位一致 (都每步刷新)
+    # Both instances refresh roots every step and should match.
     return worst < 1e-10, {"max_path_diff": worst, "threshold": 1e-10}
 
 
 def T15_mixed_precision():
-    """SPD 状态与矩阵分解至少 FP32 (README §15.18).
-    FP16 梯度先转 FP32 构造状态; 验证 FP32 状态路径正确且有限.
+    """Check that the optimizer keeps finite float32 covariance states.
+
+    Feed float16-generated gradients after converting them to float32.
     """
     torch.manual_seed(42)
     m, n = 8, 10
